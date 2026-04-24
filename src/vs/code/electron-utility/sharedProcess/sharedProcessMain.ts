@@ -143,6 +143,8 @@ import { PlaywrightChannel } from '../../../platform/browserView/node/playwright
 import { AgentNetworkFilterService } from '../../../platform/networkFilter/common/networkFilterService.js';
 import { ILocalGitService } from '../../../platform/git/common/localGitService.js';
 import { LocalGitService } from '../../../platform/git/node/localGitService.js';
+import { IOpenCodeHostMainService, OPENCODE_HOST_CHANNEL } from '../../../platform/opencode/common/opencodeHost.js';
+import { OpenCodeHostMainService } from '../../../platform/opencode/node/opencodeHostService.js';
 
 class SharedProcessMain extends Disposable implements IClientConnectionFilter {
 
@@ -425,6 +427,9 @@ class SharedProcessMain extends Disposable implements IClientConnectionFilter {
 		// Tunnel Host (hosting local agent host for remote connections)
 		services.set(ITunnelAgentHostHostingService, new SyncDescriptor(TunnelHostMainService, undefined, true));
 
+		// OpenCode Host
+		services.set(IOpenCodeHostMainService, new SyncDescriptor(OpenCodeHostMainService, undefined, true));
+
 		return new InstantiationService(services);
 	}
 
@@ -512,6 +517,10 @@ class SharedProcessMain extends Disposable implements IClientConnectionFilter {
 		// Tunnel Host
 		const tunnelHostChannel = ProxyChannel.fromService(accessor.get(ITunnelAgentHostHostingService), this._store);
 		this.server.registerChannel(TUNNEL_HOST_CHANNEL, tunnelHostChannel);
+
+		// OpenCode Host
+		const openCodeHostChannel = ProxyChannel.fromService(accessor.get(IOpenCodeHostMainService), this._store);
+		this.server.registerChannel(OPENCODE_HOST_CHANNEL, openCodeHostChannel);
 	}
 
 	private registerErrorHandler(logService: ILogService): void {
