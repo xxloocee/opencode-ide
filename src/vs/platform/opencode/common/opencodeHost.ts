@@ -1,0 +1,58 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import { Event } from '../../../base/common/event.js';
+import { createDecorator } from '../../instantiation/common/instantiation.js';
+
+export const OPENCODE_HOST_CHANNEL = 'openCodeHost';
+export const OpenCodeDefaultUrl = 'http://127.0.0.1:4096';
+export const SessionsOpenCodeUrlSettingId = 'sessions.openCode.url';
+export const SessionsOpenCodeCommandSettingId = 'sessions.openCode.command';
+export const SessionsOpenCodeCwdSettingId = 'sessions.openCode.cwd';
+export const SessionsOpenCodeUiPackageSettingId = 'sessions.openCode.uiPackage';
+
+export const enum OpenCodeHostPhase {
+	Stopped = 'stopped',
+	Starting = 'starting',
+	Running = 'running',
+	Error = 'error',
+}
+
+export interface IOpenCodeHostState {
+	readonly phase: OpenCodeHostPhase;
+	readonly url?: string;
+	readonly message?: string;
+}
+
+export interface IOpenCodeHostLaunch {
+	readonly url: string;
+	readonly command?: string;
+	readonly cwd?: string;
+	readonly uiPackage?: string;
+}
+
+export interface IOpenCodeHostService {
+	readonly _serviceBrand: undefined;
+
+	readonly state: IOpenCodeHostState;
+	readonly onDidChangeState: Event<IOpenCodeHostState>;
+
+	start(): Promise<IOpenCodeHostState>;
+	stop(): Promise<void>;
+}
+
+export const IOpenCodeHostService = createDecorator<IOpenCodeHostService>('openCodeHostService');
+
+export interface IOpenCodeHostMainService {
+	readonly _serviceBrand: undefined;
+
+	readonly onDidChangeState: Event<IOpenCodeHostState>;
+
+	getState(): Promise<IOpenCodeHostState>;
+	start(input: IOpenCodeHostLaunch): Promise<IOpenCodeHostState>;
+	stop(): Promise<void>;
+}
+
+export const IOpenCodeHostMainService = createDecorator<IOpenCodeHostMainService>('openCodeHostMainService');
