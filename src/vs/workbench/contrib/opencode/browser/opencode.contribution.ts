@@ -12,7 +12,7 @@ import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js'
 import { ViewPaneContainer } from '../../../browser/parts/views/viewPaneContainer.js';
 import { WebviewViewPane } from '../../webviewView/browser/webviewViewPane.js';
 import { IViewContainersRegistry, IViewDescriptor, IViewsRegistry, Extensions as ViewContainerExtensions, ViewContainer, ViewContainerLocation, WindowVisibility } from '../../../common/views.js';
-import { OpenCodeDefaultUrl, SessionsOpenCodeCommandSettingId, SessionsOpenCodeCwdSettingId, SessionsOpenCodeUiPackageSettingId, SessionsOpenCodeUrlSettingId } from '../../../../platform/opencode/common/opencodeHost.js';
+import { SessionsOpenCodeCommandSettingId, SessionsOpenCodeCwdSettingId, SessionsOpenCodeUiPackageSettingId } from '../../../../platform/opencode/common/opencodeHost.js';
 import { OpenCodeViewId } from './views/opencodeView.js';
 
 const openCodeViewIcon = registerIcon('opencode-view-icon', Codicon.sparkle, localize('openCodeViewIcon', "Icon for OpenCode View"));
@@ -47,12 +47,6 @@ Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry).registerViews
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
 	id: 'sessions.openCode',
 	properties: {
-		[SessionsOpenCodeUrlSettingId]: {
-			type: 'string',
-			default: OpenCodeDefaultUrl,
-			scope: ConfigurationScope.APPLICATION,
-			description: localize('openCode.url', "The OpenCode server URL the workbench should connect to.")
-		},
 		[SessionsOpenCodeCommandSettingId]: {
 			type: 'string',
 			default: '',
