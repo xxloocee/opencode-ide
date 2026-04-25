@@ -8,7 +8,6 @@ import { createDecorator } from '../../instantiation/common/instantiation.js';
 
 export const OPENCODE_HOST_CHANNEL = 'openCodeHost';
 export const OpenCodeDefaultUrl = 'http://127.0.0.1:4096';
-export const SessionsOpenCodeUrlSettingId = 'sessions.openCode.url';
 export const SessionsOpenCodeCommandSettingId = 'sessions.openCode.command';
 export const SessionsOpenCodeCwdSettingId = 'sessions.openCode.cwd';
 export const SessionsOpenCodeUiPackageSettingId = 'sessions.openCode.uiPackage';
@@ -23,6 +22,9 @@ export const enum OpenCodeHostPhase {
 export interface IOpenCodeHostState {
 	readonly phase: OpenCodeHostPhase;
 	readonly url?: string;
+	readonly port?: number;
+	readonly pid?: number;
+	readonly owned?: boolean;
 	readonly message?: string;
 }
 
@@ -48,11 +50,11 @@ export const IOpenCodeHostService = createDecorator<IOpenCodeHostService>('openC
 export interface IOpenCodeHostMainService {
 	readonly _serviceBrand: undefined;
 
-	readonly onDidChangeState: Event<IOpenCodeHostState>;
+	onDidChangeState(windowId: number): Event<IOpenCodeHostState>;
 
-	getState(): Promise<IOpenCodeHostState>;
-	start(input: IOpenCodeHostLaunch): Promise<IOpenCodeHostState>;
-	stop(): Promise<void>;
+	getState(windowId: number): Promise<IOpenCodeHostState>;
+	start(windowId: number, input: IOpenCodeHostLaunch): Promise<IOpenCodeHostState>;
+	stop(windowId: number): Promise<void>;
 }
 
 export const IOpenCodeHostMainService = createDecorator<IOpenCodeHostMainService>('openCodeHostMainService');
