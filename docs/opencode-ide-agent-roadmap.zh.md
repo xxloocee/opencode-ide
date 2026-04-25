@@ -121,4 +121,20 @@ shared process 注册入口保留在：
 - 继续让 `app-ide` 接管会话 UI
 - 再考虑更强的 agent manager、browser tool、artifacts
 
+当前选区 bridge 的边界是：
+
+- `Ctrl/Cmd+L` 可以打开 OpenCode 面板
+- 如果当前编辑器有非空选区，QuantCode 额外发送 `selection.add`
+- `app-ide` 把 `selection.add` 作为 `type: "file"` 写入 OpenCode 原生 prompt context，复用输入框已有 context chip
+- `selection.add` 成功消费后，`app-ide` 将焦点放到输入框，方便直接输入问题
+- 不为选区另做一套 dock 或重复 UI
+- OpenCode 默认不会在发送后清理普通 file context；`app-ide` 只在发送后移除由 `selection.add` 注入的 host selection context，不把 IDE 选区伪装成评论 context
+
+当前 `context` bridge 的边界是：
+
+- `context.get` / `context.change` 只承载稳定宿主快照：workspace、当前编辑器、当前选区、主题
+- marker/diagnostics 变化不触发 `context.change`
+- diagnostics 如后续需要，走独立的 `diagnostics.get` 拉取接口
+- `context.change` 发送前按快照去重，避免切换过程中的重复事件把 app-ide 推到不必要的重渲染
+
 如果未来要做的是独立 agent workspace 或单独 sessions 应用，再单独设计 `sessions` 侧入口，而不是复用当前这个 sidebar feature。

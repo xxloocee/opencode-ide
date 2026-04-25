@@ -145,6 +145,7 @@ import { NullTerminalSandboxService } from '../../../platform/sandbox/common/ter
 import { ILocalGitService } from '../../../platform/git/common/localGitService.js';
 import { LocalGitService } from '../../../platform/git/node/localGitService.js';
 import { IOpenCodeHostMainService, OPENCODE_HOST_CHANNEL } from '../../../platform/opencode/common/opencodeHost.js';
+import { OpenCodeHostChannel } from '../../../platform/opencode/common/opencodeHostIpc.js';
 import { OpenCodeHostMainService } from '../../../platform/opencode/node/opencodeHostService.js';
 
 class SharedProcessMain extends Disposable implements IClientConnectionFilter {
@@ -520,7 +521,7 @@ class SharedProcessMain extends Disposable implements IClientConnectionFilter {
 		this.server.registerChannel(TUNNEL_HOST_CHANNEL, tunnelHostChannel);
 
 		// OpenCode Host
-		const openCodeHostChannel = ProxyChannel.fromService(accessor.get(IOpenCodeHostMainService), this._store);
+		const openCodeHostChannel = new OpenCodeHostChannel(accessor.get(IOpenCodeHostMainService));
 		this.server.registerChannel(OPENCODE_HOST_CHANNEL, openCodeHostChannel);
 	}
 
