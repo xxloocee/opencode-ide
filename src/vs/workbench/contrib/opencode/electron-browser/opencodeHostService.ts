@@ -5,13 +5,11 @@
 
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { ProxyChannel } from '../../../../base/parts/ipc/common/ipc.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { ISharedProcessService } from '../../../../platform/ipc/electron-browser/services.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import {
-	IOpenCodeHostMainService,
 	IOpenCodeHostService,
 	type IOpenCodeHostLaunch,
 	type IOpenCodeHostState,
@@ -21,13 +19,14 @@ import {
 	SessionsOpenCodeCommandSettingId,
 	SessionsOpenCodeCwdSettingId,
 	SessionsOpenCodeUiPackageSettingId,
-	SessionsOpenCodeUrlSettingId,
 } from '../../../../platform/opencode/common/opencodeHost.js';
+import { IOpenCodeHostWindowClient, OpenCodeHostChannelClient } from '../../../../platform/opencode/common/opencodeHostIpc.js';
+import { INativeWorkbenchEnvironmentService } from '../../../services/environment/electron-browser/environmentService.js';
 
 export class OpenCodeHostService extends Disposable implements IOpenCodeHostService {
 	declare readonly _serviceBrand: undefined;
 
-	private readonly mainService: IOpenCodeHostMainService;
+	private readonly mainService: IOpenCodeHostWindowClient;
 	private readonly _onDidChangeState = this._register(new Emitter<IOpenCodeHostState>());
 	readonly onDidChangeState = this._onDidChangeState.event;
 
@@ -38,11 +37,13 @@ export class OpenCodeHostService extends Disposable implements IOpenCodeHostServ
 		@ISharedProcessService sharedProcessService: ISharedProcessService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ILogService private readonly logService: ILogService,
+		@INativeWorkbenchEnvironmentService private readonly environmentService: INativeWorkbenchEnvironmentService,
 	) {
 		super();
 
-		this.mainService = ProxyChannel.toService<IOpenCodeHostMainService>(
+		this.mainService = new OpenCodeHostChannelClient(
 			sharedProcessService.getChannel(OPENCODE_HOST_CHANNEL),
+			this.environmentService.window.id,
 		);
 
 		this._register(this.mainService.onDidChangeState(state => {
@@ -92,11 +93,10 @@ export class OpenCodeHostService extends Disposable implements IOpenCodeHostServ
 	}
 
 	private read(): IOpenCodeHostLaunch {
-		const url = this.configurationService.getValue<string>(SessionsOpenCodeUrlSettingId)?.trim() || OpenCodeDefaultUrl;
 		const command = this.configurationService.getValue<string>(SessionsOpenCodeCommandSettingId)?.trim() || undefined;
 		const cwd = this.configurationService.getValue<string>(SessionsOpenCodeCwdSettingId)?.trim() || undefined;
 		const uiPackage = this.configurationService.getValue<string>(SessionsOpenCodeUiPackageSettingId)?.trim() || undefined;
-		return { url, command, cwd, uiPackage };
+		return { url: OpenCodeDefaultUrl, command, cwd, uiPackage };
 	}
 
 	private setState(state: IOpenCodeHostState): void {
