@@ -71,6 +71,25 @@ export type OpenCodeContextGetRequest = {
 	readonly method: 'context.get';
 };
 
+export type OpenCodeCurrentSessionGetRequest = {
+	readonly source: 'opencode-bridge';
+	readonly id: string;
+	readonly method: 'session.current.get';
+};
+
+export type OpenCodeCurrentSessionSetRequest = {
+	readonly source: 'opencode-bridge';
+	readonly id: string;
+	readonly method: 'session.current.set';
+	readonly params: {
+		readonly sessionId: string | null;
+	};
+};
+
+export type OpenCodeCurrentSessionGetResult = {
+	readonly sessionId: string | null;
+};
+
 export type OpenCodeResourceRevealRequest = {
 	readonly source: 'opencode-bridge';
 	readonly id: string;
@@ -105,6 +124,8 @@ export type OpenCodeDiagnosticsGetResult = {
 
 export type OpenCodeBridgeRequest =
 	| OpenCodeContextGetRequest
+	| OpenCodeCurrentSessionGetRequest
+	| OpenCodeCurrentSessionSetRequest
 	| OpenCodeResourceRevealRequest
 	| OpenCodeEditorOpenRequest
 	| OpenCodeDiagnosticsGetRequest;
@@ -154,6 +175,12 @@ export function isOpenCodeBridgeRequest(value: unknown): value is OpenCodeBridge
 	if (data.method === 'context.get') {
 		return true;
 	}
+	if (data.method === 'session.current.get') {
+		return true;
+	}
+	if (data.method === 'session.current.set') {
+		return isCurrentSessionSetParams(data.params);
+	}
 	if (data.method === 'resource.reveal') {
 		return hasResource((data.params as OpenCodeResourceDto | undefined));
 	}
@@ -168,6 +195,14 @@ export function isOpenCodeBridgeRequest(value: unknown): value is OpenCodeBridge
 
 function hasResource(value: OpenCodeResourceDto | undefined): boolean {
 	return typeof value?.path === 'string' || typeof value?.uri === 'string';
+}
+
+function isCurrentSessionSetParams(value: unknown): value is OpenCodeCurrentSessionSetRequest['params'] {
+	if (!value || typeof value !== 'object') {
+		return false;
+	}
+	const params = value as { sessionId?: unknown };
+	return params.sessionId === null || typeof params.sessionId === 'string';
 }
 
 function isPositiveInt(value: unknown): value is number {
