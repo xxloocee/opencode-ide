@@ -18,6 +18,7 @@ import { ICommandService } from '../../../../platform/commands/common/commands.j
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { KeybindingsRegistry, KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { ColorScheme, isDark } from '../../../../platform/theme/common/theme.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
@@ -28,6 +29,7 @@ import {
 	IOpenCodeHostService,
 	OpenCodeDefaultUrl,
 	OpenCodeHostPhase,
+	type IOpenCodeHostState,
 } from '../../../../platform/opencode/common/opencodeHost.js';
 import {
 	isOpenCodeBridgeRequest,
@@ -35,6 +37,7 @@ import {
 	validateResourceRevealParams,
 	OpenCodeBridgeRequest,
 	OpenCodeContextDto,
+	OpenCodeCurrentSessionGetResult,
 	OpenCodeInitDto,
 	OpenCodeDiagnosticsGetRequest,
 	OpenCodeDiagnosticsGetResult,
@@ -49,6 +52,7 @@ import {
 import { OpenCodeViewId } from './views/opencodeView.js';
 
 const OpenCodeSelectionCommandId = 'workbench.action.openCode.addSelection';
+const OpenCodeCurrentSessionStorageKey = 'opencode.currentSession';
 let current: OpenCodeWebviewContribution | undefined;
 
 class OpenCodeWebviewContribution extends Disposable implements IWorkbenchContribution {
@@ -56,6 +60,7 @@ class OpenCodeWebviewContribution extends Disposable implements IWorkbenchContri
 	static readonly ID = 'workbench.contrib.openCodeWebview';
 	private view: WebviewView | undefined;
 	private lastContextSnapshot: string | undefined;
+	private runtimePort: number | undefined;
 	private readonly activeEditorListeners = this._register(new MutableDisposable<DisposableStore>());
 	private readonly contextChangeScheduler = this._register(new RunOnceScheduler(() => this.postContextChanged(), 50));
 
@@ -69,6 +74,7 @@ class OpenCodeWebviewContribution extends Disposable implements IWorkbenchContri
 		@IViewsService private readonly views: IViewsService,
 		@IMarkerService private readonly markers: IMarkerService,
 		@ICommandService private readonly cmd: ICommandService,
+		@IStorageService private readonly storage: IStorageService,
 		@IThemeService private readonly theme: IThemeService,
 		@ILifecycleService lifecycle: ILifecycleService,
 	) {
@@ -116,7 +122,7 @@ class OpenCodeWebviewContribution extends Disposable implements IWorkbenchContri
 		}));
 		this.installActiveEditorListeners();
 
-		const state = await this.host.start().catch(err => {
+		const state: IOpenCodeHostState = await this.host.start().catch(err => {
 			this.log.error('[OpenCodeWebview] Failed to start runtime', err);
 			return {
 				phase: OpenCodeHostPhase.Error,
@@ -126,6 +132,7 @@ class OpenCodeWebviewContribution extends Disposable implements IWorkbenchContri
 		});
 
 		if (state.phase === OpenCodeHostPhase.Running) {
+			this.runtimePort = state.port;
 			view.webview.setHtml(this.page(state.url ?? bootUrl));
 			return;
 		}
@@ -266,6 +273,15 @@ class OpenCodeWebviewContribution extends Disposable implements IWorkbenchContri
 			return Promise.resolve(init);
 		}
 
+		if (value.method === 'session.current.get') {
+			return Promise.resolve(this.getCurrentSession());
+		}
+
+		if (value.method === 'session.current.set') {
+			this.setCurrentSession(value.params.sessionId);
+			return Promise.resolve(null);
+		}
+
 		if (value.method === 'diagnostics.get') {
 			return Promise.resolve(this.diagnostics(value.params));
 		}
@@ -282,6 +298,25 @@ class OpenCodeWebviewContribution extends Disposable implements IWorkbenchContri
 
 		const unsupported: never = value;
 		throw new Error(`Unsupported OpenCode bridge request: ${JSON.stringify(unsupported)}`);
+	}
+
+	private getCurrentSession(): OpenCodeCurrentSessionGetResult {
+		return {
+			sessionId: this.storage.get(this.currentSessionStorageKey(), StorageScope.WORKSPACE) ?? null,
+		};
+	}
+
+	private setCurrentSession(sessionId: string | null): void {
+		const key = this.currentSessionStorageKey();
+		if (!sessionId) {
+			this.storage.remove(key, StorageScope.WORKSPACE);
+			return;
+		}
+		this.storage.store(key, sessionId, StorageScope.WORKSPACE, StorageTarget.MACHINE);
+	}
+
+	private currentSessionStorageKey(): string {
+		return `${OpenCodeCurrentSessionStorageKey}.${this.runtimePort ?? this.host.state.port ?? 'default'}`;
 	}
 
 	private ctx(): OpenCodeContextDto {
