@@ -4,13 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { RunOnceScheduler } from '../../../../base/common/async.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
 import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
+import { IOutlineModelService } from '../../../../editor/contrib/documentSymbols/browser/outlineModel.js';
 import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
+import { DocumentSymbol, symbolKindNames } from '../../../../editor/common/languages.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { IMarkerService, MarkerSeverity } from '../../../../platform/markers/common/markers.js';
@@ -23,6 +26,7 @@ import { IThemeService } from '../../../../platform/theme/common/themeService.js
 import { ColorScheme, isDark } from '../../../../platform/theme/common/theme.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
+import { ITextFileService } from '../../../services/textfile/common/textfiles.js';
 import { IWebviewViewService, type WebviewView } from '../../webviewView/browser/webviewViewService.js';
 import { ILifecycleService } from '../../../services/lifecycle/common/lifecycle.js';
 import {
@@ -42,7 +46,11 @@ import {
 	OpenCodeDiagnosticsGetRequest,
 	OpenCodeDiagnosticsGetResult,
 	OpenCodeDiagnosticDto,
+	OpenCodeDocumentSymbolsGetRequest,
+	OpenCodeDocumentSymbolsGetResult,
 	OpenCodeEditorOpenRequest,
+	OpenCodeEditorReadRangeRequest,
+	OpenCodeEditorReadRangeResult,
 	OpenCodeResourceRevealRequest,
 	OpenCodeResourceDto,
 	OpenCodeSelectionDto,
@@ -70,12 +78,14 @@ class OpenCodeWebviewContribution extends Disposable implements IWorkbenchContri
 		@ILogService private readonly log: ILogService,
 		@IWorkspaceContextService private readonly ws: IWorkspaceContextService,
 		@ICodeEditorService private readonly code: ICodeEditorService,
+		@IOutlineModelService private readonly outline: IOutlineModelService,
 		@IEditorService private readonly editor: IEditorService,
 		@IViewsService private readonly views: IViewsService,
 		@IMarkerService private readonly markers: IMarkerService,
 		@ICommandService private readonly cmd: ICommandService,
 		@IStorageService private readonly storage: IStorageService,
 		@IThemeService private readonly theme: IThemeService,
+		@ITextFileService private readonly textFiles: ITextFileService,
 		@ILifecycleService lifecycle: ILifecycleService,
 	) {
 		super();
@@ -115,6 +125,9 @@ class OpenCodeWebviewContribution extends Disposable implements IWorkbenchContri
 		}));
 		store.add(this.theme.onDidColorThemeChange(() => {
 			this.postThemeChanged(view);
+		}));
+		store.add(this.textFiles.files.onDidChangeDirty(() => {
+			this.contextChangeScheduler.schedule();
 		}));
 		store.add(this.editor.onDidActiveEditorChange(() => {
 			this.installActiveEditorListeners();
@@ -286,6 +299,14 @@ class OpenCodeWebviewContribution extends Disposable implements IWorkbenchContri
 			return Promise.resolve(this.diagnostics(value.params));
 		}
 
+		if (value.method === 'document.symbols') {
+			return this.documentSymbols(value.params);
+		}
+
+		if (value.method === 'editor.readRange') {
+			return Promise.resolve(this.readRange(value.params));
+		}
+
 		if (value.method === 'editor.open') {
 			validateEditorOpenParams(value.params);
 			return this.edit(value.params);
@@ -324,6 +345,7 @@ class OpenCodeWebviewContribution extends Disposable implements IWorkbenchContri
 		const code = this.code.getFocusedCodeEditor() ?? this.code.getActiveCodeEditor();
 		const model = code?.getModel();
 		const sel = code?.getSelection();
+		const position = code?.getPosition();
 		const path = toPath(model?.uri);
 		const workspaceFolders: OpenCodeWorkspaceFolderDto[] = ws.folders
 			.map(folder => toWorkspaceFolderDto(folder.name, folder.uri))
@@ -337,9 +359,16 @@ class OpenCodeWebviewContribution extends Disposable implements IWorkbenchContri
 					path,
 					uri: model!.uri.toString(),
 					languageId: model!.getLanguageId(),
+					cursor: position
+						? {
+							lineNumber: position.lineNumber,
+							column: position.column,
+						}
+						: null,
 					selection: sel
 						? toSelectionDto(sel.startLineNumber, sel.startColumn, sel.endLineNumber, sel.endColumn)
 						: null,
+					dirty: this.textFiles.isDirty(model!.uri),
 				}
 				: null,
 		};
@@ -369,6 +398,35 @@ class OpenCodeWebviewContribution extends Disposable implements IWorkbenchContri
 			endLineNumber: marker.endLineNumber,
 			endColumn: marker.endColumn,
 		}));
+	}
+
+	private async documentSymbols(params?: OpenCodeDocumentSymbolsGetRequest['params']): Promise<OpenCodeDocumentSymbolsGetResult> {
+		const model = params ? this.findOpenModel(this.toResource(params)) : this.activeModel();
+		if (!model) {
+			return { symbols: [] };
+		}
+		const outline = await this.outline.getOrCreate(model, CancellationToken.None);
+		return {
+			symbols: outline.asListOfDocumentSymbols().map(toDocumentSymbolDto),
+		};
+	}
+
+	private readRange(params?: OpenCodeEditorReadRangeRequest['params']): OpenCodeEditorReadRangeResult {
+		const model = params ? this.findOpenModel(this.toResource(params)) : this.activeModel();
+		if (!model) {
+			throw new Error('editor.readRange: no open editor model found');
+		}
+
+		const range = model.validateRange(params?.range ?? model.getFullModelRange());
+		const path = toPath(model.uri) ?? model.uri.toString();
+		return {
+			path,
+			uri: model.uri.toString(),
+			languageId: model.getLanguageId(),
+			range: toSelectionDto(range.startLineNumber, range.startColumn, range.endLineNumber, range.endColumn),
+			text: model.getValueInRange(range),
+			dirty: this.textFiles.isDirty(model.uri),
+		};
 	}
 
 	private postContextChanged(view = this.view): void {
@@ -450,11 +508,32 @@ class OpenCodeWebviewContribution extends Disposable implements IWorkbenchContri
 		store.add(codeEditor.onDidChangeModel(() => {
 			this.contextChangeScheduler.schedule();
 		}));
+		store.add(codeEditor.onDidChangeModelLanguage(() => {
+			this.contextChangeScheduler.schedule();
+		}));
 		this.activeEditorListeners.value = store;
 	}
 
 	private activeResource(): URI | undefined {
-		return (this.code.getFocusedCodeEditor() ?? this.code.getActiveCodeEditor())?.getModel()?.uri;
+		return this.activeModel()?.uri;
+	}
+
+	private activeModel() {
+		return (this.code.getFocusedCodeEditor() ?? this.code.getActiveCodeEditor())?.getModel();
+	}
+
+	private findOpenModel(resource: URI | undefined) {
+		if (!resource) {
+			return this.activeModel();
+		}
+		const resourceKey = resource.toString();
+		for (const editor of this.code.listCodeEditors()) {
+			const model = editor.getModel();
+			if (model?.uri.toString() === resourceKey) {
+				return model;
+			}
+		}
+		return undefined;
 	}
 
 	private toResource(resource: OpenCodeResourceDto): URI | undefined {
@@ -586,6 +665,18 @@ function toSeverity(value: MarkerSeverity) {
 		return 'info';
 	}
 	return 'hint';
+}
+
+function toDocumentSymbolDto(symbol: DocumentSymbol) {
+	return {
+		name: symbol.name,
+		detail: symbol.detail || undefined,
+		kind: symbol.kind,
+		kindName: symbolKindNames[symbol.kind] ?? String(symbol.kind),
+		containerName: symbol.containerName || undefined,
+		range: toSelectionDto(symbol.range.startLineNumber, symbol.range.startColumn, symbol.range.endLineNumber, symbol.range.endColumn),
+		selectionRange: toSelectionDto(symbol.selectionRange.startLineNumber, symbol.selectionRange.startColumn, symbol.selectionRange.endLineNumber, symbol.selectionRange.endColumn),
+	};
 }
 
 function isAbsolutePath(path: string): boolean {
