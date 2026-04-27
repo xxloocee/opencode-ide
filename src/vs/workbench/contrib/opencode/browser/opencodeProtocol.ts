@@ -13,6 +13,11 @@ export interface OpenCodeSelectionDto {
 	readonly endColumn: number;
 }
 
+export interface OpenCodePositionDto {
+	readonly lineNumber: number;
+	readonly column: number;
+}
+
 export interface OpenCodeResourceDto {
 	readonly path?: string;
 	readonly uri?: string;
@@ -32,7 +37,9 @@ export interface OpenCodeEditorDto {
 	readonly path: string;
 	readonly uri: string;
 	readonly languageId: string;
+	readonly cursor: OpenCodePositionDto | null;
 	readonly selection: OpenCodeSelectionDto | null;
+	readonly dirty: boolean;
 }
 
 export interface OpenCodeDiagnosticDto extends OpenCodeSelectionDto {
@@ -42,6 +49,16 @@ export interface OpenCodeDiagnosticDto extends OpenCodeSelectionDto {
 	readonly uri: string;
 	readonly source?: string;
 	readonly code?: string;
+}
+
+export interface OpenCodeDocumentSymbolDto {
+	readonly name: string;
+	readonly detail?: string;
+	readonly kind: number;
+	readonly kindName: string;
+	readonly containerName?: string;
+	readonly range: OpenCodeSelectionDto;
+	readonly selectionRange: OpenCodeSelectionDto;
 }
 
 export interface OpenCodeThemeDto {
@@ -122,12 +139,43 @@ export type OpenCodeDiagnosticsGetResult = {
 	readonly diagnostics: readonly OpenCodeDiagnosticDto[];
 };
 
+export type OpenCodeDocumentSymbolsGetRequest = {
+	readonly source: 'opencode-bridge';
+	readonly id: string;
+	readonly method: 'document.symbols';
+	readonly params?: OpenCodeResourceDto;
+};
+
+export type OpenCodeDocumentSymbolsGetResult = {
+	readonly symbols: readonly OpenCodeDocumentSymbolDto[];
+};
+
+export type OpenCodeEditorReadRangeRequest = {
+	readonly source: 'opencode-bridge';
+	readonly id: string;
+	readonly method: 'editor.readRange';
+	readonly params?: OpenCodeResourceDto & {
+		readonly range?: OpenCodeSelectionDto;
+	};
+};
+
+export type OpenCodeEditorReadRangeResult = {
+	readonly path: string;
+	readonly uri: string;
+	readonly languageId: string;
+	readonly range: OpenCodeSelectionDto;
+	readonly text: string;
+	readonly dirty: boolean;
+};
+
 export type OpenCodeBridgeRequest =
 	| OpenCodeContextGetRequest
 	| OpenCodeCurrentSessionGetRequest
 	| OpenCodeCurrentSessionSetRequest
 	| OpenCodeResourceRevealRequest
 	| OpenCodeEditorOpenRequest
+	| OpenCodeDocumentSymbolsGetRequest
+	| OpenCodeEditorReadRangeRequest
 	| OpenCodeDiagnosticsGetRequest;
 
 export type OpenCodeHostResponse = {
@@ -187,6 +235,12 @@ export function isOpenCodeBridgeRequest(value: unknown): value is OpenCodeBridge
 	if (data.method === 'editor.open') {
 		return hasResource((data.params as OpenCodeResourceDto | undefined));
 	}
+	if (data.method === 'editor.readRange') {
+		return data.params === undefined || isEditorReadRangeParams(data.params);
+	}
+	if (data.method === 'document.symbols') {
+		return data.params === undefined || hasResource((data.params as OpenCodeResourceDto | undefined));
+	}
 	if (data.method === 'diagnostics.get') {
 		return data.params === undefined || hasResource((data.params as OpenCodeResourceDto | undefined));
 	}
@@ -223,6 +277,16 @@ function isValidSelection(value: unknown): boolean {
 	const s = value as Record<string, unknown>;
 	return isPositiveInt(s.startLineNumber) && isPositiveInt(s.startColumn)
 		&& isPositiveInt(s.endLineNumber) && isPositiveInt(s.endColumn);
+}
+
+function isEditorReadRangeParams(value: unknown): boolean {
+	if (!value || typeof value !== 'object') {
+		return false;
+	}
+	const params = value as Record<string, unknown>;
+	const hasAnyResource = params.path !== undefined || params.uri !== undefined;
+	const validResource = !hasAnyResource || hasResource(params as OpenCodeResourceDto);
+	return validResource && isValidSelection(params.range);
 }
 
 export function validateEditorOpenParams(params: unknown): asserts params is OpenCodeEditorOpenRequest['params'] {
