@@ -57,7 +57,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			type: 'string',
 			default: '',
 			scope: ConfigurationScope.APPLICATION,
-			description: localize('openCode.cwd', "Optional working directory used when launching the OpenCode server command.")
+			description: localize('openCode.cwd', "Optional working directory used to launch the OpenCode server command. When empty, QuantCode falls back to the current window workspace root.")
 		},
 		[SessionsOpenCodeUiPackageSettingId]: {
 			type: 'string',
