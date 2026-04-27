@@ -7,6 +7,7 @@ import { RunOnceScheduler } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
+import { dirname } from '../../../../base/common/path.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
@@ -68,7 +69,7 @@ class OpenCodeWebviewContribution extends Disposable implements IWorkbenchContri
 	static readonly ID = 'workbench.contrib.openCodeWebview';
 	private view: WebviewView | undefined;
 	private lastContextSnapshot: string | undefined;
-	private runtimePort: number | undefined;
+	private sessionScopeRoot: string | undefined;
 	private readonly activeEditorListeners = this._register(new MutableDisposable<DisposableStore>());
 	private readonly contextChangeScheduler = this._register(new RunOnceScheduler(() => this.postContextChanged(), 50));
 
@@ -105,6 +106,7 @@ class OpenCodeWebviewContribution extends Disposable implements IWorkbenchContri
 
 	private async resolve(view: WebviewView): Promise<void> {
 		const bootUrl = this.host.state.url ?? OpenCodeDefaultUrl;
+		this.sessionScopeRoot = this.serverProjectRoot();
 		this.view = view;
 		this.lastContextSnapshot = undefined;
 		view.webview.options = { ...view.webview.options, retainContextWhenHidden: true };
@@ -145,7 +147,6 @@ class OpenCodeWebviewContribution extends Disposable implements IWorkbenchContri
 		});
 
 		if (state.phase === OpenCodeHostPhase.Running) {
-			this.runtimePort = state.port;
 			view.webview.setHtml(this.page(state.url ?? bootUrl));
 			return;
 		}
@@ -156,7 +157,7 @@ class OpenCodeWebviewContribution extends Disposable implements IWorkbenchContri
 	private boot(url: string): string {
 		const title = localize('openCode.title', "OpenCode");
 		const body = localize('openCode.boot', "Starting OpenCode runtime...");
-		const detail = localize('openCode.boot.detail', "Preparing OpenCode at {0}", url);
+		const detail = localize('openCode.boot.detail', "Preparing OpenCode runtime...");
 		return /* html */ `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -182,6 +183,7 @@ class OpenCodeWebviewContribution extends Disposable implements IWorkbenchContri
 	}
 
 	private page(url: string): string {
+		const iframeUrl = this.appUrl(url, this.sessionScopeRoot);
 		const origin = new URL(url).origin;
 		const title = localize('openCode.title', "OpenCode");
 		const nonce = generateUuid();
@@ -205,7 +207,7 @@ class OpenCodeWebviewContribution extends Disposable implements IWorkbenchContri
 	</style>
 </head>
 <body>
-	<iframe id="app" src="${escape(url)}" frameborder="0"></iframe>
+	<iframe id="app" src="${escape(iframeUrl)}" frameborder="0"></iframe>
 	<script nonce="${nonce}">
 		const vscode = acquireVsCodeApi();
 		const app = document.getElementById('app');
@@ -225,8 +227,17 @@ class OpenCodeWebviewContribution extends Disposable implements IWorkbenchContri
 			}
 		});
 	</script>
-</body>
+	</body>
 </html>`;
+	}
+
+	private appUrl(url: string, root = this.serverProjectRoot()): string {
+		if (!root) {
+			return url;
+		}
+		const endpoint = new URL(url);
+		endpoint.pathname = `/${base64UrlEncode(root)}`;
+		return endpoint.toString();
 	}
 
 	private error(msg: string): string {
@@ -337,7 +348,27 @@ class OpenCodeWebviewContribution extends Disposable implements IWorkbenchContri
 	}
 
 	private currentSessionStorageKey(): string {
-		return `${OpenCodeCurrentSessionStorageKey}.${this.runtimePort ?? this.host.state.port ?? 'default'}`;
+		const scope = this.sessionScopeRoot ?? this.workspaceSessionScope();
+		if (!scope) {
+			return OpenCodeCurrentSessionStorageKey;
+		}
+		return `${OpenCodeCurrentSessionStorageKey}.${base64UrlEncode(scope)}`;
+	}
+
+	private workspaceSessionScope(): string | undefined {
+		const folders = this.ws.getWorkspace().folders
+			.filter(folder => folder.uri.scheme === 'file')
+			.map(folder => folder.uri.fsPath);
+		if (folders.length > 0) {
+			return folders.join('|');
+		}
+
+		const configuration = this.ws.getWorkspace().configuration;
+		if (configuration?.scheme === 'file') {
+			return configuration.fsPath;
+		}
+
+		return undefined;
 	}
 
 	private ctx(): OpenCodeContextDto {
@@ -518,6 +549,31 @@ class OpenCodeWebviewContribution extends Disposable implements IWorkbenchContri
 		return this.activeModel()?.uri;
 	}
 
+	private serverProjectRoot(): string | undefined {
+		const active = this.activeResource();
+		const activeFolder = active ? this.ws.getWorkspaceFolder(active) : null;
+		if (activeFolder?.uri.scheme === 'file') {
+			return activeFolder.uri.fsPath;
+		}
+
+		const folder = this.ws.getWorkspace().folders.find(candidate => candidate.uri.scheme === 'file');
+		if (folder) {
+			return folder.uri.fsPath;
+		}
+
+		const workspace = this.ws.getWorkspace();
+		if (workspace.configuration?.scheme === 'file') {
+			return dirname(workspace.configuration.fsPath);
+		}
+
+		const activePath = toPath(active);
+		if (activePath) {
+			return active?.scheme === 'file' ? dirname(activePath) : undefined;
+		}
+
+		return undefined;
+	}
+
 	private activeModel() {
 		return (this.code.getFocusedCodeEditor() ?? this.code.getActiveCodeEditor())?.getModel();
 	}
@@ -685,6 +741,15 @@ function isAbsolutePath(path: string): boolean {
 
 function snapshotContext(context: OpenCodeContextDto): string {
 	return JSON.stringify(context);
+}
+
+function base64UrlEncode(value: string): string {
+	const bytes = new TextEncoder().encode(value);
+	const binary = Array.from(bytes, byte => String.fromCharCode(byte)).join('');
+	return btoa(binary)
+		.replaceAll('+', '-')
+		.replaceAll('/', '_')
+		.replace(/=+$/g, '');
 }
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({

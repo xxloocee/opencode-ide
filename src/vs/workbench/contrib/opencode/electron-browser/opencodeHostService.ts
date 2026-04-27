@@ -5,10 +5,12 @@
 
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
+import { dirname } from '../../../../base/common/path.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { ISharedProcessService } from '../../../../platform/ipc/electron-browser/services.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
+import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import {
 	IOpenCodeHostService,
 	type IOpenCodeHostLaunch,
@@ -36,6 +38,7 @@ export class OpenCodeHostService extends Disposable implements IOpenCodeHostServ
 	constructor(
 		@ISharedProcessService sharedProcessService: ISharedProcessService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@ILogService private readonly logService: ILogService,
 		@INativeWorkbenchEnvironmentService private readonly environmentService: INativeWorkbenchEnvironmentService,
 	) {
@@ -94,9 +97,22 @@ export class OpenCodeHostService extends Disposable implements IOpenCodeHostServ
 
 	private read(): IOpenCodeHostLaunch {
 		const command = this.configurationService.getValue<string>(SessionsOpenCodeCommandSettingId)?.trim() || undefined;
-		const cwd = this.configurationService.getValue<string>(SessionsOpenCodeCwdSettingId)?.trim() || undefined;
+		const configuredCwd = this.configurationService.getValue<string>(SessionsOpenCodeCwdSettingId)?.trim() || undefined;
 		const uiPackage = this.configurationService.getValue<string>(SessionsOpenCodeUiPackageSettingId)?.trim() || undefined;
+		const cwd = configuredCwd || this.workspaceCwd();
 		return { url: OpenCodeDefaultUrl, command, cwd, uiPackage };
+	}
+
+	private workspaceCwd(): string | undefined {
+		const workspace = this.workspaceContextService.getWorkspace();
+		const folder = workspace.folders.find(candidate => candidate.uri.scheme === 'file');
+		if (folder) {
+			return folder.uri.fsPath;
+		}
+		if (workspace.configuration?.scheme === 'file') {
+			return dirname(workspace.configuration.fsPath);
+		}
+		return undefined;
 	}
 
 	private setState(state: IOpenCodeHostState): void {
