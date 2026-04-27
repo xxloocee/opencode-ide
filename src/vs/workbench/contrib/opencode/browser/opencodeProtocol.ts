@@ -51,6 +51,62 @@ export interface OpenCodeDiagnosticDto extends OpenCodeSelectionDto {
 	readonly code?: string;
 }
 
+export interface OpenCodeDiagnosticCountsDto {
+	readonly errors: number;
+	readonly warnings: number;
+	readonly infos: number;
+	readonly hints: number;
+}
+
+export interface OpenCodeDiagnosticFileSummaryDto {
+	readonly path: string;
+	readonly uri: string;
+	readonly errors: number;
+	readonly warnings: number;
+	readonly infos: number;
+	readonly hints: number;
+}
+
+export interface OpenCodeWorkspaceDiagnosticsDto {
+	readonly total: OpenCodeDiagnosticCountsDto;
+	readonly files: readonly OpenCodeDiagnosticFileSummaryDto[];
+	readonly diagnostics: readonly OpenCodeDiagnosticDto[];
+}
+
+export type OpenCodeTaskStatus = 'running' | 'completed' | 'terminated';
+
+export interface OpenCodeTaskSnapshotDto {
+	readonly id: string;
+	readonly label: string;
+	readonly detail?: string;
+	readonly type?: string;
+	readonly sourceKind?: string;
+	readonly workspaceFolder?: string;
+	readonly runType: 'singleRun' | 'background';
+	readonly status: OpenCodeTaskStatus;
+	readonly terminalId?: number;
+	readonly exitCode?: number;
+	readonly durationMs?: number;
+	readonly hasProblemMatcherErrors: boolean;
+	readonly problemCount: number;
+	readonly problems: readonly OpenCodeDiagnosticDto[];
+}
+
+export type OpenCodeTerminalSnapshotSource = 'command' | 'buffer';
+
+export interface OpenCodeTerminalSnapshotDto {
+	readonly title: string;
+	readonly cwd?: string;
+	readonly shellType?: string;
+	readonly command?: string;
+	readonly output?: string;
+	readonly exitCode?: number;
+	readonly source: OpenCodeTerminalSnapshotSource;
+	readonly hasCommandDetection: boolean;
+	readonly lineCount: number;
+	readonly truncated: boolean;
+}
+
 export interface OpenCodeDocumentSymbolDto {
 	readonly name: string;
 	readonly detail?: string;
@@ -139,6 +195,16 @@ export type OpenCodeDiagnosticsGetResult = {
 	readonly diagnostics: readonly OpenCodeDiagnosticDto[];
 };
 
+export type OpenCodeWorkspaceDiagnosticsGetRequest = {
+	readonly source: 'opencode-bridge';
+	readonly id: string;
+	readonly method: 'diagnostics.workspace.get';
+};
+
+export type OpenCodeWorkspaceDiagnosticsGetResult = {
+	readonly summary: OpenCodeWorkspaceDiagnosticsDto;
+};
+
 export type OpenCodeDocumentSymbolsGetRequest = {
 	readonly source: 'opencode-bridge';
 	readonly id: string;
@@ -168,6 +234,26 @@ export type OpenCodeEditorReadRangeResult = {
 	readonly dirty: boolean;
 };
 
+export type OpenCodeLastTaskGetRequest = {
+	readonly source: 'opencode-bridge';
+	readonly id: string;
+	readonly method: 'task.last.get';
+};
+
+export type OpenCodeLastTaskGetResult = {
+	readonly task: OpenCodeTaskSnapshotDto | null;
+};
+
+export type OpenCodeLastTerminalGetRequest = {
+	readonly source: 'opencode-bridge';
+	readonly id: string;
+	readonly method: 'terminal.last.get';
+};
+
+export type OpenCodeLastTerminalGetResult = {
+	readonly terminal: OpenCodeTerminalSnapshotDto | null;
+};
+
 export type OpenCodeBridgeRequest =
 	| OpenCodeContextGetRequest
 	| OpenCodeCurrentSessionGetRequest
@@ -176,7 +262,10 @@ export type OpenCodeBridgeRequest =
 	| OpenCodeEditorOpenRequest
 	| OpenCodeDocumentSymbolsGetRequest
 	| OpenCodeEditorReadRangeRequest
-	| OpenCodeDiagnosticsGetRequest;
+	| OpenCodeDiagnosticsGetRequest
+	| OpenCodeWorkspaceDiagnosticsGetRequest
+	| OpenCodeLastTaskGetRequest
+	| OpenCodeLastTerminalGetRequest;
 
 export type OpenCodeHostResponse = {
 	readonly source: 'opencode-host';
@@ -243,6 +332,15 @@ export function isOpenCodeBridgeRequest(value: unknown): value is OpenCodeBridge
 	}
 	if (data.method === 'diagnostics.get') {
 		return data.params === undefined || hasResource((data.params as OpenCodeResourceDto | undefined));
+	}
+	if (data.method === 'diagnostics.workspace.get') {
+		return data.params === undefined;
+	}
+	if (data.method === 'task.last.get') {
+		return data.params === undefined;
+	}
+	if (data.method === 'terminal.last.get') {
+		return data.params === undefined;
 	}
 	return false;
 }
