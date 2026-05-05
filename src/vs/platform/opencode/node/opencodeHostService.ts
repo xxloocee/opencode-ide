@@ -168,6 +168,7 @@ class OpenCodeWindowHost extends Disposable {
 				QUANTCODE_OPENCODE_PARENT_PID: String(process.pid),
 				QUANTCODE_OPENCODE_REGISTRY: this.registry.location,
 				...(input.uiPackage ? { OPENCODE_UI_PACKAGE: input.uiPackage } : {}),
+				...(input.uiPackage === 'app-ide' && input.enableGenerativeUiCsp ? { OPENCODE_ENABLE_GENERATIVE_UI_CSP: '1' } : {}),
 			},
 			shell: true,
 			stdio: ['ignore', 'pipe', 'pipe'],

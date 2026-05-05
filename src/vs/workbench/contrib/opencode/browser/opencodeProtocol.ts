@@ -254,6 +254,15 @@ export type OpenCodeLastTerminalGetResult = {
 	readonly terminal: OpenCodeTerminalSnapshotDto | null;
 };
 
+export type OpenCodeClipboardWriteTextRequest = {
+	readonly source: 'opencode-bridge';
+	readonly id: string;
+	readonly method: 'clipboard.writeText';
+	readonly params: {
+		readonly text: string;
+	};
+};
+
 export type OpenCodeBridgeRequest =
 	| OpenCodeContextGetRequest
 	| OpenCodeCurrentSessionGetRequest
@@ -265,7 +274,8 @@ export type OpenCodeBridgeRequest =
 	| OpenCodeDiagnosticsGetRequest
 	| OpenCodeWorkspaceDiagnosticsGetRequest
 	| OpenCodeLastTaskGetRequest
-	| OpenCodeLastTerminalGetRequest;
+	| OpenCodeLastTerminalGetRequest
+	| OpenCodeClipboardWriteTextRequest;
 
 export type OpenCodeHostResponse = {
 	readonly source: 'opencode-host';
@@ -342,6 +352,9 @@ export function isOpenCodeBridgeRequest(value: unknown): value is OpenCodeBridge
 	if (data.method === 'terminal.last.get') {
 		return data.params === undefined;
 	}
+	if (data.method === 'clipboard.writeText') {
+		return isClipboardWriteTextParams(data.params);
+	}
 	return false;
 }
 
@@ -355,6 +368,14 @@ function isCurrentSessionSetParams(value: unknown): value is OpenCodeCurrentSess
 	}
 	const params = value as { sessionId?: unknown };
 	return params.sessionId === null || typeof params.sessionId === 'string';
+}
+
+function isClipboardWriteTextParams(value: unknown): value is OpenCodeClipboardWriteTextRequest['params'] {
+	if (!value || typeof value !== 'object') {
+		return false;
+	}
+	const params = value as { text?: unknown };
+	return typeof params.text === 'string';
 }
 
 function isPositiveInt(value: unknown): value is number {
