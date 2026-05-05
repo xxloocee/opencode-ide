@@ -12,7 +12,12 @@ import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js'
 import { ViewPaneContainer } from '../../../browser/parts/views/viewPaneContainer.js';
 import { WebviewViewPane } from '../../webviewView/browser/webviewViewPane.js';
 import { IViewContainersRegistry, IViewDescriptor, IViewsRegistry, Extensions as ViewContainerExtensions, ViewContainer, ViewContainerLocation, WindowVisibility } from '../../../common/views.js';
-import { SessionsOpenCodeCommandSettingId, SessionsOpenCodeCwdSettingId, SessionsOpenCodeUiPackageSettingId } from '../../../../platform/opencode/common/opencodeHost.js';
+import {
+	SessionsOpenCodeCommandSettingId,
+	SessionsOpenCodeCwdSettingId,
+	SessionsOpenCodeEnableGenerativeUiCspSettingId,
+	SessionsOpenCodeUiPackageSettingId,
+} from '../../../../platform/opencode/common/opencodeHost.js';
 import { OpenCodeViewId } from './views/opencodeView.js';
 
 const openCodeViewIcon = registerIcon('opencode-view-icon', Codicon.sparkle, localize('openCodeViewIcon', "Icon for OpenCode View"));
@@ -64,6 +69,12 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			default: 'app-ide',
 			scope: ConfigurationScope.APPLICATION,
 			description: localize('openCode.uiPackage', "Optional OpenCode web UI package name to inject via OPENCODE_UI_PACKAGE when launching the local runtime.")
+		},
+		[SessionsOpenCodeEnableGenerativeUiCspSettingId]: {
+			type: 'boolean',
+			default: true,
+			scope: ConfigurationScope.APPLICATION,
+			description: localize('openCode.enableGenerativeUiCsp', "When enabled, QuantCode injects OPENCODE_ENABLE_GENERATIVE_UI_CSP=1 for app-ide launches so generative widgets can use the IDE-specific CSP policy.")
 		},
 	}
 });

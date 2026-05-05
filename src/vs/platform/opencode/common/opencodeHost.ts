@@ -11,6 +11,7 @@ export const OpenCodeDefaultUrl = 'http://127.0.0.1:4096';
 export const SessionsOpenCodeCommandSettingId = 'sessions.openCode.command';
 export const SessionsOpenCodeCwdSettingId = 'sessions.openCode.cwd';
 export const SessionsOpenCodeUiPackageSettingId = 'sessions.openCode.uiPackage';
+export const SessionsOpenCodeEnableGenerativeUiCspSettingId = 'sessions.openCode.enableGenerativeUiCsp';
 
 export const enum OpenCodeHostPhase {
 	Stopped = 'stopped',
@@ -33,6 +34,7 @@ export interface IOpenCodeHostLaunch {
 	readonly command?: string;
 	readonly cwd?: string;
 	readonly uiPackage?: string;
+	readonly enableGenerativeUiCsp?: boolean;
 }
 
 export interface IOpenCodeHostService {

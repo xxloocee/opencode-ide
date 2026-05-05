@@ -20,6 +20,7 @@ import {
 	OPENCODE_HOST_CHANNEL,
 	SessionsOpenCodeCommandSettingId,
 	SessionsOpenCodeCwdSettingId,
+	SessionsOpenCodeEnableGenerativeUiCspSettingId,
 	SessionsOpenCodeUiPackageSettingId,
 } from '../../../../platform/opencode/common/opencodeHost.js';
 import { IOpenCodeHostWindowClient, OpenCodeHostChannelClient } from '../../../../platform/opencode/common/opencodeHostIpc.js';
@@ -99,8 +100,9 @@ export class OpenCodeHostService extends Disposable implements IOpenCodeHostServ
 		const command = this.configurationService.getValue<string>(SessionsOpenCodeCommandSettingId)?.trim() || undefined;
 		const configuredCwd = this.configurationService.getValue<string>(SessionsOpenCodeCwdSettingId)?.trim() || undefined;
 		const uiPackage = this.configurationService.getValue<string>(SessionsOpenCodeUiPackageSettingId)?.trim() || undefined;
+		const enableGenerativeUiCsp = this.configurationService.getValue<boolean>(SessionsOpenCodeEnableGenerativeUiCspSettingId) ?? true;
 		const cwd = configuredCwd || this.workspaceCwd();
-		return { url: OpenCodeDefaultUrl, command, cwd, uiPackage };
+		return { url: OpenCodeDefaultUrl, command, cwd, uiPackage, enableGenerativeUiCsp };
 	}
 
 	private workspaceCwd(): string | undefined {

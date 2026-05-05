@@ -22,6 +22,7 @@ import { ICommandService } from '../../../../platform/commands/common/commands.j
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { KeybindingsRegistry, KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
+import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { ColorScheme, isDark } from '../../../../platform/theme/common/theme.js';
@@ -102,6 +103,7 @@ class OpenCodeWebviewContribution extends Disposable implements IWorkbenchContri
 		@IViewsService private readonly views: IViewsService,
 		@IMarkerService private readonly markers: IMarkerService,
 		@ICommandService private readonly cmd: ICommandService,
+		@IClipboardService private readonly clipboardService: IClipboardService,
 		@IStorageService private readonly storage: IStorageService,
 		@IThemeService private readonly theme: IThemeService,
 		@ITextFileService private readonly textFiles: ITextFileService,
@@ -351,6 +353,10 @@ class OpenCodeWebviewContribution extends Disposable implements IWorkbenchContri
 
 		if (value.method === 'terminal.last.get') {
 			return this.lastTerminal();
+		}
+
+		if (value.method === 'clipboard.writeText') {
+			return this.clipboardService.writeText(value.params.text);
 		}
 
 		if (value.method === 'editor.open') {
