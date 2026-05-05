@@ -166,6 +166,68 @@ const sourceMappingURLBase = `https://main.vscode-cdn.net/sourcemaps/${commit}`;
 const isCI = !!process.env['CI'] || !!process.env['BUILD_ARTIFACTSTAGINGDIRECTORY'] || !!process.env['GITHUB_WORKSPACE'];
 const useCdnSourceMapsForPackagingTasks = isCI;
 const stripSourceMapsInPackagingTasks = isCI;
+const openCodeSourceRepoPath = process.env['QUANTCODE_OPENCODE_SOURCE_DIR'] || path.join(path.dirname(root), 'opencode-source');
+const openCodePackagePath = path.join(openCodeSourceRepoPath, 'packages', 'opencode');
+
+interface IBundledOpenCodeRuntimeFile {
+	readonly source: string;
+	readonly destDir: string;
+	readonly basename: string;
+}
+
+function getBundledOpenCodeRuntimeFiles(platform: string, arch: string): readonly IBundledOpenCodeRuntimeFile[] {
+	if (platform !== 'win32' || arch !== 'x64') {
+		return [];
+	}
+
+	const variants = [
+		{ folder: 'opencode-windows-x64', basename: 'opencode.exe' },
+		{ folder: 'opencode-windows-x64-baseline', basename: 'opencode-baseline.exe' },
+	];
+
+	const runtimeFiles = variants.map<IBundledOpenCodeRuntimeFile>(variant => ({
+		source: path.join(openCodeSourceRepoPath, 'packages', 'opencode', 'dist', variant.folder, 'bin', 'opencode.exe'),
+		destDir: 'opencode/bin',
+		basename: variant.basename,
+	})).filter(file => fs.existsSync(file.source));
+
+	if (runtimeFiles.length === 0) {
+		throw new Error(
+			`Bundled OpenCode runtime is missing. Build opencode-source first or set QUANTCODE_OPENCODE_SOURCE_DIR.\nExpected at least:\n${path.join(openCodeSourceRepoPath, 'packages', 'opencode', 'dist', 'opencode-windows-x64', 'bin', 'opencode.exe')}`
+		);
+	}
+
+	return runtimeFiles;
+}
+
+function buildBundledOpenCodeRuntimeTask(platform: string, arch: string): task.Task | undefined {
+	if (platform !== 'win32' || arch !== 'x64') {
+		return undefined;
+	}
+
+	return task.define(`build-opencode-runtime-${platform}-${arch}`, cb => {
+		const done = cb ?? (() => { });
+		if (!fs.existsSync(openCodePackagePath)) {
+			done(new Error(`OpenCode source repo not found at ${openCodePackagePath}. Set QUANTCODE_OPENCODE_SOURCE_DIR to continue.`));
+			return;
+		}
+
+		const proc = cp.spawn('bun', ['run', '--cwd', openCodePackagePath, 'build', '--single'], {
+			stdio: 'inherit',
+			shell: true,
+			windowsHide: true,
+		});
+
+		proc.on('error', done);
+		proc.on('exit', code => {
+			if (code === 0) {
+				done();
+				return;
+			}
+			done(new Error(`OpenCode runtime build failed with exit code ${code}.`));
+		});
+	});
+}
 const minifyVSCodeTask = task.define('minify-vscode', task.series(
 	bundleVSCodeTask,
 	util.rimraf('out-vscode-min'),
@@ -364,6 +426,15 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 			deps
 		];
 		let all = es.merge(...mergeStreams);
+		const bundledOpenCodeRuntimeFiles = getBundledOpenCodeRuntimeFiles(platform, arch);
+		if (bundledOpenCodeRuntimeFiles.length > 0) {
+			all = es.merge(all, ...bundledOpenCodeRuntimeFiles.map(file => gulp.src(file.source, { base: path.dirname(file.source) })
+				.pipe(rename(entry => {
+					entry.dirname = file.destDir;
+					entry.basename = path.parse(file.basename).name;
+					entry.extname = path.parse(file.basename).ext;
+				}))));
+		}
 
 		if (platform === 'win32') {
 			all = es.merge(all, gulp.src([
@@ -570,19 +641,23 @@ function patchWin32DependenciesTask(destinationFolderName: string) {
 			const fullPath = path.join(cwd, dep);
 
 			await stripAuthenticodeSignature(fullPath);
-			await rcedit(fullPath, {
-				'file-version': baseVersion,
-				'version-string': {
-					'CompanyName': 'Microsoft Corporation',
-					'FileDescription': product.nameLong,
-					'FileVersion': packageJson.version,
-					'InternalName': basename,
-					'LegalCopyright': 'Copyright (C) 2026 Microsoft. All rights reserved',
-					'OriginalFilename': basename,
-					'ProductName': product.nameLong,
-					'ProductVersion': packageJson.version,
-				}
-			});
+			try {
+				await rcedit(fullPath, {
+					'file-version': baseVersion,
+					'version-string': {
+						'CompanyName': 'Microsoft Corporation',
+						'FileDescription': product.nameLong,
+						'FileVersion': packageJson.version,
+						'InternalName': basename,
+						'LegalCopyright': 'Copyright (C) 2026 Microsoft. All rights reserved',
+						'OriginalFilename': basename,
+						'ProductName': product.nameLong,
+						'ProductVersion': packageJson.version,
+					}
+				});
+			} catch (error) {
+				console.warn(`[patch-win32-deps] Skipping version metadata for ${dep}: ${error instanceof Error ? error.message : String(error)}`);
+			}
 		});
 
 		await Promise.all(patchPromises);
@@ -630,6 +705,10 @@ BUILD_TARGETS.forEach(buildTarget => {
 		const packageTasks: task.Task[] = [
 			compileNativeExtensionsBuildTask,
 			util.rimraf(path.join(buildRoot, destinationFolderName)),
+			...(() => {
+				const buildOpenCodeRuntimeTask = buildBundledOpenCodeRuntimeTask(platform, arch);
+				return buildOpenCodeRuntimeTask ? [buildOpenCodeRuntimeTask] : [];
+			})(),
 			packageTask(platform, arch, sourceFolderName, destinationFolderName, opts),
 			prepareCopilotRipgrepShimTask(platform, arch, destinationFolderName)
 		];

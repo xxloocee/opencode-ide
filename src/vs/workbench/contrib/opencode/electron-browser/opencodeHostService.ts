@@ -5,8 +5,10 @@
 
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { dirname } from '../../../../base/common/path.js';
+import { dirname, join } from '../../../../base/common/path.js';
+import { URI } from '../../../../base/common/uri.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IFileService } from '../../../../platform/files/common/files.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { ISharedProcessService } from '../../../../platform/ipc/electron-browser/services.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
@@ -39,6 +41,7 @@ export class OpenCodeHostService extends Disposable implements IOpenCodeHostServ
 	constructor(
 		@ISharedProcessService sharedProcessService: ISharedProcessService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IFileService private readonly fileService: IFileService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@ILogService private readonly logService: ILogService,
 		@INativeWorkbenchEnvironmentService private readonly environmentService: INativeWorkbenchEnvironmentService,
@@ -65,7 +68,7 @@ export class OpenCodeHostService extends Disposable implements IOpenCodeHostServ
 			return this._state;
 		}
 
-		const input = this.read();
+		const input = await this.read();
 		if (!input.command) {
 			const ok = await probe(input.url);
 			const state = ok
@@ -96,13 +99,28 @@ export class OpenCodeHostService extends Disposable implements IOpenCodeHostServ
 		this.setState({ phase: OpenCodeHostPhase.Stopped });
 	}
 
-	private read(): IOpenCodeHostLaunch {
-		const command = this.configurationService.getValue<string>(SessionsOpenCodeCommandSettingId)?.trim() || undefined;
+	private async read(): Promise<IOpenCodeHostLaunch> {
+		const command = this.configurationService.getValue<string>(SessionsOpenCodeCommandSettingId)?.trim() || await this.bundledCommand();
 		const configuredCwd = this.configurationService.getValue<string>(SessionsOpenCodeCwdSettingId)?.trim() || undefined;
 		const uiPackage = this.configurationService.getValue<string>(SessionsOpenCodeUiPackageSettingId)?.trim() || undefined;
 		const enableGenerativeUiCsp = this.configurationService.getValue<boolean>(SessionsOpenCodeEnableGenerativeUiCspSettingId) ?? true;
 		const cwd = configuredCwd || this.workspaceCwd();
 		return { url: OpenCodeDefaultUrl, command, cwd, uiPackage, enableGenerativeUiCsp };
+	}
+
+	private async bundledCommand(): Promise<string | undefined> {
+		const candidates = [
+			join(this.environmentService.appRoot, 'opencode', 'bin', 'opencode.exe'),
+			join(this.environmentService.appRoot, 'opencode', 'bin', 'opencode-baseline.exe'),
+		];
+
+		for (const candidate of candidates) {
+			if (await this.fileService.exists(URI.file(candidate))) {
+				return `"${candidate}"`;
+			}
+		}
+
+		return undefined;
 	}
 
 	private workspaceCwd(): string | undefined {
