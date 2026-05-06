@@ -178,25 +178,52 @@ interface IBundledOpenCodeRuntimeFile {
 	readonly basename: string;
 }
 
-function getBundledOpenCodeRuntimeFiles(platform: string, arch: string): readonly IBundledOpenCodeRuntimeFile[] {
-	if (platform !== 'win32' || arch !== 'x64') {
+interface IOpenCodeRuntimeVariant {
+	readonly folder: string;
+	readonly basename: string;
+}
+
+function getBundledOpenCodeRuntimeVariants(platform: string, arch: string): readonly IOpenCodeRuntimeVariant[] {
+	if ((platform !== 'win32' && platform !== 'darwin' && platform !== 'linux') || (arch !== 'x64' && arch !== 'arm64')) {
 		return [];
 	}
 
-	const variants = [
-		{ folder: 'opencode-windows-x64', basename: 'opencode.exe' },
-		{ folder: 'opencode-windows-x64-baseline', basename: 'opencode-baseline.exe' },
+	const runtimePlatform = platform === 'win32' ? 'windows' : platform;
+	const extension = platform === 'win32' ? '.exe' : '';
+	const variants: IOpenCodeRuntimeVariant[] = [
+		{
+			folder: `opencode-${runtimePlatform}-${arch}`,
+			basename: `opencode${extension}`,
+		}
 	];
 
+	// Bundle the baseline x64 binary alongside the default one so older CPUs without AVX2
+	// can still start the packaged sidecar.
+	if (arch === 'x64') {
+		variants.push({
+			folder: `opencode-${runtimePlatform}-${arch}-baseline`,
+			basename: `opencode-baseline${extension}`,
+		});
+	}
+
+	return variants;
+}
+
+function getBundledOpenCodeRuntimeFiles(platform: string, arch: string): readonly IBundledOpenCodeRuntimeFile[] {
+	const variants = getBundledOpenCodeRuntimeVariants(platform, arch);
+	if (variants.length === 0) {
+		return [];
+	}
+
 	const runtimeFiles = variants.map<IBundledOpenCodeRuntimeFile>(variant => ({
-		source: path.join(openCodeSourceRepoPath, 'packages', 'opencode', 'dist', variant.folder, 'bin', 'opencode.exe'),
+		source: path.join(openCodeSourceRepoPath, 'packages', 'opencode', 'dist', variant.folder, 'bin', platform === 'win32' ? 'opencode.exe' : 'opencode'),
 		destDir: 'opencode/bin',
 		basename: variant.basename,
 	})).filter(file => fs.existsSync(file.source));
 
 	if (runtimeFiles.length === 0) {
 		throw new Error(
-			`Bundled OpenCode runtime is missing. Build opencode-source first or set QUANTCODE_OPENCODE_SOURCE_DIR.\nExpected at least:\n${path.join(openCodeSourceRepoPath, 'packages', 'opencode', 'dist', 'opencode-windows-x64', 'bin', 'opencode.exe')}`
+			`Bundled OpenCode runtime is missing. Build opencode-source first or set QUANTCODE_OPENCODE_SOURCE_DIR.\nExpected at least:\n${path.join(openCodeSourceRepoPath, 'packages', 'opencode', 'dist', variants[0].folder, 'bin', platform === 'win32' ? 'opencode.exe' : 'opencode')}`
 		);
 	}
 
@@ -204,7 +231,8 @@ function getBundledOpenCodeRuntimeFiles(platform: string, arch: string): readonl
 }
 
 function buildBundledOpenCodeRuntimeTask(platform: string, arch: string): task.Task | undefined {
-	if (platform !== 'win32' || arch !== 'x64') {
+	const variants = getBundledOpenCodeRuntimeVariants(platform, arch);
+	if (variants.length === 0) {
 		return undefined;
 	}
 
@@ -215,19 +243,51 @@ function buildBundledOpenCodeRuntimeTask(platform: string, arch: string): task.T
 			return;
 		}
 
-		const proc = cp.spawn('bun', ['run', '--cwd', openCodePackagePath, 'build', '--single'], {
-			stdio: 'inherit',
-			shell: true,
-			windowsHide: true,
-		});
+		const canBuildNatively = process.platform === platform && process.arch === arch;
+		const buildArgs = canBuildNatively
+			? ['run', '--cwd', openCodePackagePath, 'build', '--single']
+			: ['run', '--cwd', openCodePackagePath, 'build'];
 
-		proc.on('error', done);
-		proc.on('exit', code => {
-			if (code === 0) {
-				done();
+		const runBuild = (args: string[], onExit: (code: number | null) => void): void => {
+			const proc = cp.spawn('bun', args, {
+				stdio: 'inherit',
+				shell: true,
+				windowsHide: true,
+			});
+
+			proc.on('error', done);
+			proc.on('exit', onExit);
+		};
+
+		runBuild(buildArgs, code => {
+			if (code !== 0) {
+				done(new Error(`OpenCode runtime build failed with exit code ${code}.`));
 				return;
 			}
-			done(new Error(`OpenCode runtime build failed with exit code ${code}.`));
+
+			if (canBuildNatively && arch === 'x64' && variants.some(variant => variant.folder.endsWith('-baseline'))) {
+				runBuild([...buildArgs, '--baseline'], baselineCode => {
+					if (baselineCode !== 0) {
+						done(new Error(`OpenCode baseline runtime build failed with exit code ${baselineCode}.`));
+						return;
+					}
+
+					try {
+						getBundledOpenCodeRuntimeFiles(platform, arch);
+						done();
+					} catch (error) {
+						done(error instanceof Error ? error : new Error(String(error)));
+					}
+				});
+				return;
+			}
+
+			try {
+				getBundledOpenCodeRuntimeFiles(platform, arch);
+				done();
+			} catch (error) {
+				done(error instanceof Error ? error : new Error(String(error)));
+			}
 		});
 	});
 }
