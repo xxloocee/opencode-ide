@@ -1,0 +1,195 @@
+name: build-quantcode-installers
+
+on:
+  workflow_dispatch:
+    inputs:
+      opencode_repository:
+        description: Repository that provides the OpenCode runtime source
+        required: false
+        default: ""
+      opencode_ref:
+        description: Git ref of the OpenCode runtime repository
+        required: false
+        default: main
+  push:
+    tags:
+      - "quantcode-v*.*.*"
+
+concurrency: ${{ github.workflow }}-${{ github.ref }}
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: windows-latest
+            platform: win32
+            arch: x64
+            policy_target: win32
+          - runner: windows-11-arm
+            platform: win32
+            arch: arm64
+            policy_target: win32
+          - runner: macos-13
+            platform: darwin
+            arch: x64
+            policy_target: darwin
+          - runner: macos-14
+            platform: darwin
+            arch: arm64
+            policy_target: darwin
+          - runner: ubuntu-24.04
+            platform: linux
+            arch: x64
+            policy_target: linux
+          - runner: ubuntu-24.04-arm
+            platform: linux
+            arch: arm64
+            policy_target: linux
+
+    runs-on: ${{ matrix.runner }}
+
+    env:
+      OPENCODE_REPOSITORY: ${{ github.event_name == 'workflow_dispatch' && inputs.opencode_repository || format('{0}/opencode-gui', github.repository_owner) }}
+      OPENCODE_REF: ${{ github.event_name == 'workflow_dispatch' && inputs.opencode_ref || 'main' }}
+      QUANTCODE_OPENCODE_SOURCE_DIR: ${{ github.workspace }}/opencode-source
+
+    steps:
+      - name: Checkout QuantCode
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Checkout OpenCode runtime source
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ env.OPENCODE_REPOSITORY }}
+          ref: ${{ env.OPENCODE_REF }}
+          path: opencode-source
+          fetch-depth: 0
+          token: ${{ secrets.CROSS_REPO_GH_TOKEN || github.token }}
+
+      - name: Setup Bun for OpenCode source
+        uses: ./opencode-source/.github/actions/setup-bun
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install QuantCode dependencies
+        shell: bash
+        run: npm ci
+
+      - name: Install Linux packaging dependencies
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y fakeroot rpm
+
+      - name: Generate platform policies
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run copy-policy-dto --prefix build
+          node build/lib/policies/policyGenerator.ts build/lib/policies/policyData.jsonc ${{ matrix.policy_target }}
+
+      - name: Build Windows client
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          npm run gulp "vscode-win32-${{ matrix.arch }}-min-ci"
+          npm run gulp "vscode-win32-${{ matrix.arch }}-inno-updater"
+          npm run gulp "vscode-win32-${{ matrix.arch }}-system-setup"
+          npm run gulp "vscode-win32-${{ matrix.arch }}-user-setup"
+
+          $Version = node -p "require('./package.json').version"
+          $ArtifactDir = Join-Path $PWD "artifacts"
+          New-Item -ItemType Directory -Path $ArtifactDir -Force | Out-Null
+
+          $ZipPath = Join-Path $ArtifactDir "QuantCode-win32-${{ matrix.arch }}-$Version.zip"
+          if (Test-Path $ZipPath) {
+            Remove-Item $ZipPath -Force
+          }
+          & 7z a -tzip $ZipPath "..\VSCode-win32-${{ matrix.arch }}\*" "-xr!CodeSignSummary*.md"
+
+          Copy-Item ".build\win32-${{ matrix.arch }}\system-setup\VSCodeSetup.exe" (Join-Path $ArtifactDir "QuantCodeSetup-${{ matrix.arch }}-$Version.exe")
+          Copy-Item ".build\win32-${{ matrix.arch }}\user-setup\VSCodeSetup.exe" (Join-Path $ArtifactDir "QuantCodeUserSetup-${{ matrix.arch }}-$Version.exe")
+
+      - name: Build macOS client
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run gulp "vscode-darwin-${{ matrix.arch }}-min-ci"
+
+          version=$(node -p "require('./package.json').version")
+          artifact_dir="$PWD/artifacts"
+          app_root="../VSCode-darwin-${{ matrix.arch }}"
+          app_name="$(find "$app_root" -maxdepth 1 -name '*.app' -print -quit | xargs basename)"
+          app_path="$app_root/$app_name"
+
+          mkdir -p "$artifact_dir"
+          (cd "$app_root" && zip -Xry "$artifact_dir/QuantCode-darwin-${{ matrix.arch }}-$version.zip" .)
+          hdiutil create -volname "QuantCode Preview" -srcfolder "$app_path" -ov -format UDZO "$artifact_dir/QuantCode-darwin-${{ matrix.arch }}-$version.dmg"
+
+      - name: Build Linux client
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run gulp "vscode-linux-${{ matrix.arch }}-min-ci"
+
+          version=$(node -p "require('./package.json').version")
+          artifact_dir="$PWD/artifacts"
+          mkdir -p "$artifact_dir"
+
+          tar -czf "$artifact_dir/QuantCode-linux-${{ matrix.arch }}-$version.tar.gz" -C .. "VSCode-linux-${{ matrix.arch }}"
+
+          npm run gulp "vscode-linux-${{ matrix.arch }}-prepare-deb"
+          npm run gulp "vscode-linux-${{ matrix.arch }}-build-deb"
+          cp .build/linux/deb/*/deb/*.deb "$artifact_dir/"
+
+          npm run gulp "vscode-linux-${{ matrix.arch }}-prepare-rpm"
+          npm run gulp "vscode-linux-${{ matrix.arch }}-build-rpm"
+          cp .build/linux/rpm/*/*.rpm "$artifact_dir/"
+
+      - name: Upload installer artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: quantcode-${{ matrix.platform }}-${{ matrix.arch }}
+          path: artifacts/*
+
+  release:
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/quantcode-v')
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Download installer artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Generate checksums
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd dist
+          sha256sum * > SHA256SUMS.txt
+
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/*
+          generate_release_notes: true
