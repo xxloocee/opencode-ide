@@ -6,6 +6,7 @@
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { dirname, join } from '../../../../base/common/path.js';
+import { isWindows } from '../../../../base/common/platform.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
@@ -109,9 +110,11 @@ export class OpenCodeHostService extends Disposable implements IOpenCodeHostServ
 	}
 
 	private async bundledCommand(): Promise<string | undefined> {
+		const executable = isWindows ? 'opencode.exe' : 'opencode';
+		const baseline = isWindows ? 'opencode-baseline.exe' : 'opencode-baseline';
 		const candidates = [
-			join(this.environmentService.appRoot, 'opencode', 'bin', 'opencode.exe'),
-			join(this.environmentService.appRoot, 'opencode', 'bin', 'opencode-baseline.exe'),
+			join(this.environmentService.appRoot, 'opencode', 'bin', executable),
+			join(this.environmentService.appRoot, 'opencode', 'bin', baseline),
 		];
 
 		for (const candidate of candidates) {
