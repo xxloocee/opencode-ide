@@ -93,6 +93,8 @@ jobs:
           set -euo pipefail
 
           upstream_ref="refs/remotes/upstream/$UPSTREAM_BRANCH"
+          resolver_script="$RUNNER_TEMP/resolve-product-json-conflict.mjs"
+          cp .github/scripts/resolve-product-json-conflict.mjs "$resolver_script"
           git rebase "$upstream_ref" || true
 
           while [ -d .git/rebase-merge ] || [ -d .git/rebase-apply ]; do
@@ -104,7 +106,7 @@ jobs:
             fi
 
             if [ "$conflict_files" = "product.json" ]; then
-              node .github/scripts/resolve-product-json-conflict.mjs
+              node "$resolver_script"
               git add product.json
               git rebase --continue || true
               continue
