@@ -11,7 +11,7 @@ import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurati
 import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
 import { ViewPaneContainer } from '../../../browser/parts/views/viewPaneContainer.js';
 import { WebviewViewPane } from '../../webviewView/browser/webviewViewPane.js';
-import { IViewContainersRegistry, IViewDescriptor, IViewsRegistry, Extensions as ViewContainerExtensions, ViewContainer, ViewContainerLocation, WindowVisibility } from '../../../common/views.js';
+import { IViewContainersRegistry, IViewDescriptor, IViewsRegistry, Extensions as ViewContainerExtensions, ViewContainer, ViewContainerLocation, WindowEnablement } from '../../../common/views.js';
 import {
 	SessionsOpenCodeCommandSettingId,
 	SessionsOpenCodeCwdSettingId,
@@ -32,7 +32,7 @@ const openCodeViewContainer: ViewContainer = Registry.as<IViewContainersRegistry
 	storageId: OpenCodeContainerId,
 	hideIfEmpty: true,
 	order: 2,
-	windowVisibility: WindowVisibility.Editor
+	windowEnablement: WindowEnablement.Editor
 }, ViewContainerLocation.AuxiliaryBar);
 
 const openCodeViewDescriptor: IViewDescriptor = {
@@ -44,7 +44,7 @@ const openCodeViewDescriptor: IViewDescriptor = {
 	canToggleVisibility: true,
 	canMoveView: true,
 	ctorDescriptor: new SyncDescriptor(WebviewViewPane),
-	windowVisibility: WindowVisibility.Editor
+	windowEnablement: WindowEnablement.Editor
 };
 
 Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry).registerViews([openCodeViewDescriptor], openCodeViewContainer);
