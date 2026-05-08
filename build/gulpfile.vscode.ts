@@ -168,6 +168,7 @@ const useCdnSourceMapsForPackagingTasks = isCI;
 const stripSourceMapsInPackagingTasks = isCI;
 const openCodeSourceRepoPath = process.env['QUANTCODE_OPENCODE_SOURCE_DIR'] || path.join(path.dirname(root), 'opencode-source');
 const openCodePackagePath = path.join(openCodeSourceRepoPath, 'packages', 'opencode');
+const skipOpenCodeBaselineBuild = process.env['QUANTCODE_OPENCODE_SKIP_BASELINE'] === '1';
 
 interface IBundledOpenCodeRuntimeFile {
 	readonly source: string;
@@ -262,7 +263,7 @@ function buildBundledOpenCodeRuntimeTask(platform: string, arch: string): task.T
 				return;
 			}
 
-			if (canBuildNatively && arch === 'x64' && variants.some(variant => variant.folder.endsWith('-baseline'))) {
+			if (canBuildNatively && arch === 'x64' && !skipOpenCodeBaselineBuild && variants.some(variant => variant.folder.endsWith('-baseline'))) {
 				runBuild([...buildArgs, '--baseline'], baselineCode => {
 					if (baselineCode !== 0) {
 						done(new Error(`OpenCode baseline runtime build failed with exit code ${baselineCode}.`));
@@ -277,6 +278,10 @@ function buildBundledOpenCodeRuntimeTask(platform: string, arch: string): task.T
 					}
 				});
 				return;
+			}
+
+			if (canBuildNatively && arch === 'x64' && skipOpenCodeBaselineBuild) {
+				console.warn('[build-opencode-runtime] Skipping baseline runtime build because QUANTCODE_OPENCODE_SKIP_BASELINE=1.');
 			}
 
 			try {
