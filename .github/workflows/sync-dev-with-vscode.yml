@@ -1,0 +1,203 @@
+name: sync-dev-with-vscode
+
+on:
+  schedule:
+    - cron: '17 */6 * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-dev
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  rebase-dev:
+    runs-on: ubuntu-24.04
+
+    env:
+      TARGET_BRANCH: dev
+      UPSTREAM_REPOSITORY: https://github.com/microsoft/vscode.git
+      UPSTREAM_BRANCH: main
+      GIT_AUTHOR_NAME: github-actions[bot]
+      GIT_AUTHOR_EMAIL: 41898282+github-actions[bot]@users.noreply.github.com
+      GIT_COMMITTER_NAME: github-actions[bot]
+      GIT_COMMITTER_EMAIL: 41898282+github-actions[bot]@users.noreply.github.com
+      GIT_EDITOR: true
+
+    steps:
+      - name: Checkout dev
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TARGET_BRANCH }}
+          fetch-depth: 0
+          token: ${{ secrets.QUANTCODE_SYNC_TOKEN || github.token }}
+
+      - name: Configure git
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "$GIT_AUTHOR_NAME"
+          git config user.email "$GIT_AUTHOR_EMAIL"
+
+      - name: Fetch upstream vscode
+        shell: bash
+        run: |
+          set -euo pipefail
+          git remote add upstream "$UPSTREAM_REPOSITORY" 2>/dev/null || git remote set-url upstream "$UPSTREAM_REPOSITORY"
+          git fetch --no-tags upstream "$UPSTREAM_BRANCH":refs/remotes/upstream/"$UPSTREAM_BRANCH"
+
+      - name: Detect upstream changes
+        id: detect
+        shell: bash
+        run: |
+          set -euo pipefail
+          current_dev_sha=$(git rev-parse HEAD)
+          upstream_ref="refs/remotes/upstream/$UPSTREAM_BRANCH"
+          upstream_sha=$(git rev-parse "$upstream_ref")
+          merge_base=$(git merge-base HEAD "$upstream_ref")
+
+          echo "current_dev_sha=$current_dev_sha" >> "$GITHUB_OUTPUT"
+          echo "upstream_sha=$upstream_sha" >> "$GITHUB_OUTPUT"
+
+          if [ "$merge_base" = "$upstream_sha" ]; then
+            echo "needs_rebase=false" >> "$GITHUB_OUTPUT"
+            {
+              echo "## Upstream Sync"
+              echo
+              echo "No new upstream commits detected."
+              echo
+              echo "- dev: \`$current_dev_sha\`"
+              echo "- upstream/$UPSTREAM_BRANCH: \`$upstream_sha\`"
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          echo "needs_rebase=true" >> "$GITHUB_OUTPUT"
+          echo "merge_base=$merge_base" >> "$GITHUB_OUTPUT"
+          {
+            echo "## Upstream Sync"
+            echo
+            echo "New upstream commits detected. Rebase will start."
+            echo
+            echo "- dev: \`$current_dev_sha\`"
+            echo "- merge-base: \`$merge_base\`"
+            echo "- upstream/$UPSTREAM_BRANCH: \`$upstream_sha\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Rebase dev onto upstream main
+        if: steps.detect.outputs.needs_rebase == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          upstream_ref="refs/remotes/upstream/$UPSTREAM_BRANCH"
+          git rebase "$upstream_ref" || true
+
+          while [ -d .git/rebase-merge ] || [ -d .git/rebase-apply ]; do
+            conflict_files=$(git diff --name-only --diff-filter=U || true)
+
+            if [ -z "$conflict_files" ]; then
+              git rebase --continue || true
+              continue
+            fi
+
+            if [ "$conflict_files" = "product.json" ]; then
+              node <<'NODE'
+              const fs = require('fs');
+              const { execFileSync } = require('child_process');
+
+              function readStage(stage, file) {
+                return JSON.parse(execFileSync('git', ['show', `:${stage}:${file}`], { encoding: 'utf8' }));
+              }
+
+              const ours = readStage(2, 'product.json');
+              const theirs = readStage(3, 'product.json');
+              const merged = { ...ours };
+              const brandKeys = [
+                'nameShort',
+                'nameLong',
+                'applicationName',
+                'dataFolderName',
+                'win32MutexName',
+                'serverApplicationName',
+                'serverDataFolderName',
+                'tunnelApplicationName',
+                'win32DirName',
+                'win32NameVersion',
+                'win32RegValueName',
+                'win32x64AppId',
+                'win32arm64AppId',
+                'win32x64UserAppId',
+                'win32arm64UserAppId',
+                'win32AppUserModelId',
+                'win32ShellNameShort',
+                'win32TunnelServiceMutex',
+                'win32TunnelMutex',
+                'darwinBundleIdentifier',
+                'linuxIconName',
+                'urlProtocol'
+              ];
+
+              for (const key of brandKeys) {
+                if (Object.prototype.hasOwnProperty.call(theirs, key)) {
+                  merged[key] = theirs[key];
+                }
+              }
+
+              if (Object.prototype.hasOwnProperty.call(theirs, 'sharedDataFolderName')) {
+                merged.sharedDataFolderName = theirs.sharedDataFolderName;
+              } else if (typeof theirs.dataFolderName === 'string' && theirs.dataFolderName.length > 0) {
+                merged.sharedDataFolderName = `${theirs.dataFolderName}-shared`;
+              }
+
+              fs.writeFileSync('product.json', `${JSON.stringify(merged, null, '\t')}\n`);
+              NODE
+
+              git add product.json
+              git rebase --continue || true
+              continue
+            fi
+
+            {
+              echo
+              echo "### Rebase Stopped"
+              echo
+              echo "Automatic brand conflict resolution could not finish this rebase."
+              echo
+              echo "Conflicting files:"
+              printf '%s\n' "$conflict_files" | sed 's/^/- `/; s/$/`/'
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          done
+
+      - name: Push rebased dev
+        if: steps.detect.outputs.needs_rebase == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          previous_sha="${{ steps.detect.outputs.current_dev_sha }}"
+          current_sha=$(git rev-parse HEAD)
+
+          if [ "$previous_sha" = "$current_sha" ]; then
+            {
+              echo
+              echo "### Rebase Result"
+              echo
+              echo "Rebase completed without changing the dev branch head."
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          git push --force-with-lease origin HEAD:"$TARGET_BRANCH"
+
+          {
+            echo
+            echo "### Rebase Result"
+            echo
+            echo "dev was rebased and pushed."
+            echo
+            echo "- previous dev: \`$previous_sha\`"
+            echo "- new dev: \`$current_sha\`"
+          } >> "$GITHUB_STEP_SUMMARY"
