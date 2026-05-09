@@ -1,23 +1,23 @@
-name: sync-dev-with-vscode
+name: rebase-main-with-vscode
 
 on:
   schedule:
-    - cron: '17 */6 * * *'
+    - cron: '17 */3 * * *'
   workflow_dispatch:
 
 concurrency:
-  group: ${{ github.workflow }}-dev
+  group: ${{ github.workflow }}-main
   cancel-in-progress: false
 
 permissions:
   contents: write
 
 jobs:
-  rebase-dev:
+  rebase-main:
     runs-on: ubuntu-24.04
 
     env:
-      TARGET_BRANCH: dev
+      TARGET_BRANCH: main
       UPSTREAM_REPOSITORY: https://github.com/microsoft/vscode.git
       UPSTREAM_BRANCH: main
       GIT_AUTHOR_NAME: github-actions[bot]
@@ -27,7 +27,7 @@ jobs:
       GIT_EDITOR: true
 
     steps:
-      - name: Checkout dev
+      - name: Checkout main
         uses: actions/checkout@v4
         with:
           ref: ${{ env.TARGET_BRANCH }}
@@ -53,22 +53,22 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          current_dev_sha=$(git rev-parse HEAD)
+          current_main_sha=$(git rev-parse HEAD)
           upstream_ref="refs/remotes/upstream/$UPSTREAM_BRANCH"
           upstream_sha=$(git rev-parse "$upstream_ref")
           merge_base=$(git merge-base HEAD "$upstream_ref")
 
-          echo "current_dev_sha=$current_dev_sha" >> "$GITHUB_OUTPUT"
+          echo "current_main_sha=$current_main_sha" >> "$GITHUB_OUTPUT"
           echo "upstream_sha=$upstream_sha" >> "$GITHUB_OUTPUT"
 
           if [ "$merge_base" = "$upstream_sha" ]; then
             echo "needs_rebase=false" >> "$GITHUB_OUTPUT"
             {
-              echo "## Upstream Sync"
+              echo "## Upstream Rebase"
               echo
               echo "No new upstream commits detected."
               echo
-              echo "- dev: \`$current_dev_sha\`"
+              echo "- main: \`$current_main_sha\`"
               echo "- upstream/$UPSTREAM_BRANCH: \`$upstream_sha\`"
             } >> "$GITHUB_STEP_SUMMARY"
             exit 0
@@ -77,16 +77,16 @@ jobs:
           echo "needs_rebase=true" >> "$GITHUB_OUTPUT"
           echo "merge_base=$merge_base" >> "$GITHUB_OUTPUT"
           {
-            echo "## Upstream Sync"
+            echo "## Upstream Rebase"
             echo
             echo "New upstream commits detected. Rebase will start."
             echo
-            echo "- dev: \`$current_dev_sha\`"
+            echo "- main: \`$current_main_sha\`"
             echo "- merge-base: \`$merge_base\`"
             echo "- upstream/$UPSTREAM_BRANCH: \`$upstream_sha\`"
           } >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Rebase dev onto upstream main
+      - name: Rebase main onto upstream main
         if: steps.detect.outputs.needs_rebase == 'true'
         shell: bash
         run: |
@@ -124,12 +124,12 @@ jobs:
             exit 1
           done
 
-      - name: Push rebased dev
+      - name: Push rebased main
         if: steps.detect.outputs.needs_rebase == 'true'
         shell: bash
         run: |
           set -euo pipefail
-          previous_sha="${{ steps.detect.outputs.current_dev_sha }}"
+          previous_sha="${{ steps.detect.outputs.current_main_sha }}"
           current_sha=$(git rev-parse HEAD)
 
           if [ "$previous_sha" = "$current_sha" ]; then
@@ -137,7 +137,7 @@ jobs:
               echo
               echo "### Rebase Result"
               echo
-              echo "Rebase completed without changing the dev branch head."
+              echo "Rebase completed without changing the main branch head."
             } >> "$GITHUB_STEP_SUMMARY"
             exit 0
           fi
@@ -148,8 +148,8 @@ jobs:
             echo
             echo "### Rebase Result"
             echo
-            echo "dev was rebased and pushed."
+            echo "main was rebased and pushed."
             echo
-            echo "- previous dev: \`$previous_sha\`"
-            echo "- new dev: \`$current_sha\`"
+            echo "- previous main: \`$previous_sha\`"
+            echo "- new main: \`$current_sha\`"
           } >> "$GITHUB_STEP_SUMMARY"
