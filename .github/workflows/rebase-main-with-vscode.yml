@@ -20,7 +20,7 @@ jobs:
       TARGET_BRANCH: main
       UPSTREAM_REPOSITORY: https://github.com/microsoft/vscode.git
       UPSTREAM_BRANCH: main
-      SYNC_TOKEN: ${{ secrets.QUANTCODE_SYNC_TOKEN || github.token }}
+      SYNC_TOKEN: ${{ secrets.UPSTREAM_SYNC_TOKEN }}
       GIT_AUTHOR_NAME: github-actions[bot]
       GIT_AUTHOR_EMAIL: 41898282+github-actions[bot]@users.noreply.github.com
       GIT_COMMITTER_NAME: github-actions[bot]
@@ -28,6 +28,28 @@ jobs:
       GIT_EDITOR: true
 
     steps:
+      - name: Validate sync token
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [ -n "${SYNC_TOKEN:-}" ]; then
+            exit 0
+          fi
+
+          {
+            echo "## Missing Sync Token"
+            echo
+            echo "This workflow may need to update files under \`.github/workflows/\`."
+            echo "GitHub's default \`GITHUB_TOKEN\` cannot reliably push those changes."
+            echo
+            echo "Create a repository secret named \`UPSTREAM_SYNC_TOKEN\` and use one of:"
+            echo "- a fine-grained PAT with repository \`Contents: Read and write\` and \`Workflows: Read and write\`"
+            echo "- a classic PAT with \`repo\` and \`workflow\` scopes"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          exit 1
+
       - name: Checkout main
         uses: actions/checkout@v5
         with:
