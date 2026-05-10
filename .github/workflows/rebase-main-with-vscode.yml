@@ -20,6 +20,7 @@ jobs:
       TARGET_BRANCH: main
       UPSTREAM_REPOSITORY: https://github.com/microsoft/vscode.git
       UPSTREAM_BRANCH: main
+      SYNC_TOKEN: ${{ secrets.QUANTCODE_SYNC_TOKEN || github.token }}
       GIT_AUTHOR_NAME: github-actions[bot]
       GIT_AUTHOR_EMAIL: 41898282+github-actions[bot]@users.noreply.github.com
       GIT_COMMITTER_NAME: github-actions[bot]
@@ -28,11 +29,11 @@ jobs:
 
     steps:
       - name: Checkout main
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           ref: ${{ env.TARGET_BRANCH }}
           fetch-depth: 0
-          token: ${{ secrets.QUANTCODE_SYNC_TOKEN }}
+          token: ${{ env.SYNC_TOKEN }}
 
       - name: Configure git
         shell: bash
@@ -40,7 +41,7 @@ jobs:
           set -euo pipefail
           git config user.name "$GIT_AUTHOR_NAME"
           git config user.email "$GIT_AUTHOR_EMAIL"
-          git remote set-url origin "https://x-access-token:${{ secrets.QUANTCODE_SYNC_TOKEN }}@github.com/${{ github.repository }}.git"
+          git remote set-url origin "https://x-access-token:${{ env.SYNC_TOKEN }}@github.com/${{ github.repository }}.git"
 
       - name: Fetch upstream vscode
         shell: bash
