@@ -60,12 +60,12 @@ jobs:
 
     steps:
       - name: Checkout QuantCode
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
       - name: Checkout OpenCode runtime source
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           repository: ${{ env.OPENCODE_REPOSITORY }}
           ref: ${{ env.OPENCODE_REF }}
