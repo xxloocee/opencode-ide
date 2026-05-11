@@ -163,7 +163,7 @@ jobs:
           cp .build/linux/rpm/*/*.rpm "$artifact_dir/"
 
       - name: Upload installer artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: quantcode-${{ matrix.platform }}-${{ matrix.arch }}
           path: artifacts/*
