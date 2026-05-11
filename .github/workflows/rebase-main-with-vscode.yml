@@ -1,4 +1,4 @@
-name: rebase-main-with-vscode
+name: rebase-sync-main-with-vscode
 
 on:
   schedule:
@@ -6,18 +6,18 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: ${{ github.workflow }}-main
+  group: ${{ github.workflow }}-sync-main
   cancel-in-progress: false
 
 permissions:
   contents: write
 
 jobs:
-  rebase-main:
+  rebase-sync-main:
     runs-on: ubuntu-24.04
 
     env:
-      TARGET_BRANCH: main
+      TARGET_BRANCH: sync-main
       UPSTREAM_REPOSITORY: https://github.com/microsoft/vscode.git
       UPSTREAM_BRANCH: main
       SYNC_TOKEN: ${{ secrets.UPSTREAM_SYNC_TOKEN }}
@@ -50,7 +50,7 @@ jobs:
 
           exit 1
 
-      - name: Checkout main
+      - name: Checkout sync-main
         uses: actions/checkout@v5
         with:
           ref: ${{ env.TARGET_BRANCH }}
@@ -77,12 +77,12 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          current_main_sha=$(git rev-parse HEAD)
+          current_target_sha=$(git rev-parse HEAD)
           upstream_ref="refs/remotes/upstream/$UPSTREAM_BRANCH"
           upstream_sha=$(git rev-parse "$upstream_ref")
           merge_base=$(git merge-base HEAD "$upstream_ref")
 
-          echo "current_main_sha=$current_main_sha" >> "$GITHUB_OUTPUT"
+          echo "current_target_sha=$current_target_sha" >> "$GITHUB_OUTPUT"
           echo "upstream_sha=$upstream_sha" >> "$GITHUB_OUTPUT"
 
           if [ "$merge_base" = "$upstream_sha" ]; then
@@ -92,7 +92,7 @@ jobs:
               echo
               echo "No new upstream commits detected."
               echo
-              echo "- main: \`$current_main_sha\`"
+              echo "- $TARGET_BRANCH: \`$current_target_sha\`"
               echo "- upstream/$UPSTREAM_BRANCH: \`$upstream_sha\`"
             } >> "$GITHUB_STEP_SUMMARY"
             exit 0
@@ -105,55 +105,35 @@ jobs:
             echo
             echo "New upstream commits detected. Rebase will start."
             echo
-            echo "- main: \`$current_main_sha\`"
+            echo "- $TARGET_BRANCH: \`$current_target_sha\`"
             echo "- merge-base: \`$merge_base\`"
             echo "- upstream/$UPSTREAM_BRANCH: \`$upstream_sha\`"
           } >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Rebase main onto upstream main
+      - name: Rebase sync-main onto upstream main
         if: steps.detect.outputs.needs_rebase == 'true'
         shell: bash
         run: |
           set -euo pipefail
 
-          upstream_ref="refs/remotes/upstream/$UPSTREAM_BRANCH"
-          resolver_script="$RUNNER_TEMP/resolve-product-json-conflict.mjs"
-          cp .github/scripts/resolve-product-json-conflict.mjs "$resolver_script"
-          git rebase "$upstream_ref" || true
-
-          while [ -d .git/rebase-merge ] || [ -d .git/rebase-apply ]; do
-            conflict_files=$(git diff --name-only --diff-filter=U || true)
-
-            if [ -z "$conflict_files" ]; then
-              git rebase --continue || true
-              continue
-            fi
-
-            if [ "$conflict_files" = "product.json" ]; then
-              node "$resolver_script"
-              git add product.json
-              git rebase --continue || true
-              continue
-            fi
-
+          if ! git rebase "refs/remotes/upstream/$UPSTREAM_BRANCH"; then
+            git rebase --abort || true
             {
               echo
               echo "### Rebase Stopped"
               echo
-              echo "Automatic brand conflict resolution could not finish this rebase."
-              echo
-              echo "Conflicting files:"
-              printf '%s\n' "$conflict_files" | sed 's/^/- `/; s/$/`/'
+              echo "Automatic rebase failed because of conflicts on \`$TARGET_BRANCH\`."
+              echo "Resolve conflicts locally, then force-push the fixed \`$TARGET_BRANCH\` branch."
             } >> "$GITHUB_STEP_SUMMARY"
             exit 1
-          done
+          fi
 
-      - name: Push rebased main
+      - name: Push rebased sync-main
         if: steps.detect.outputs.needs_rebase == 'true'
         shell: bash
         run: |
           set -euo pipefail
-          previous_sha="${{ steps.detect.outputs.current_main_sha }}"
+          previous_sha="${{ steps.detect.outputs.current_target_sha }}"
           current_sha=$(git rev-parse HEAD)
 
           if [ "$previous_sha" = "$current_sha" ]; then
@@ -161,7 +141,7 @@ jobs:
               echo
               echo "### Rebase Result"
               echo
-              echo "Rebase completed without changing the main branch head."
+              echo "Rebase completed without changing the $TARGET_BRANCH branch head."
             } >> "$GITHUB_STEP_SUMMARY"
             exit 0
           fi
@@ -172,8 +152,8 @@ jobs:
             echo
             echo "### Rebase Result"
             echo
-            echo "main was rebased and pushed."
+            echo "$TARGET_BRANCH was rebased and pushed."
             echo
-            echo "- previous main: \`$previous_sha\`"
-            echo "- new main: \`$current_sha\`"
+            echo "- previous $TARGET_BRANCH: \`$previous_sha\`"
+            echo "- new $TARGET_BRANCH: \`$current_sha\`"
           } >> "$GITHUB_STEP_SUMMARY"
