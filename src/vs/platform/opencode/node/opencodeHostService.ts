@@ -47,11 +47,11 @@ export class OpenCodeHostMainService extends Disposable implements IOpenCodeHost
 
 	constructor(
 		@ILogService private readonly logService: ILogService,
-		@IEnvironmentService environmentService: INativeEnvironmentService,
+		@IEnvironmentService private readonly environmentService: INativeEnvironmentService,
 	) {
 		super();
 		this.registry = new OpenCodeHostRegistry(
-			join(environmentService.userDataPath, 'opencode', 'hosts.json'),
+			join(this.environmentService.userDataPath, 'opencode', 'hosts.json'),
 			this.ownerId,
 			this.logService,
 		);
@@ -78,7 +78,7 @@ export class OpenCodeHostMainService extends Disposable implements IOpenCodeHost
 		const id = windowId > 0 ? windowId : 0;
 		let host = this.hosts.get(id);
 		if (!host) {
-			host = this._register(new OpenCodeWindowHost(id, this.ownerId, this.registry, this.logService));
+			host = this._register(new OpenCodeWindowHost(id, this.ownerId, this.registry, this.logService, this.environmentService));
 			this.hosts.set(id, host);
 		}
 		return host;
@@ -107,6 +107,7 @@ class OpenCodeWindowHost extends Disposable {
 		private readonly ownerId: string,
 		private readonly registry: OpenCodeHostRegistry,
 		private readonly logService: ILogService,
+		private readonly environmentService: INativeEnvironmentService,
 	) {
 		super();
 	}
@@ -145,6 +146,7 @@ class OpenCodeWindowHost extends Disposable {
 		}
 
 		const launch = await this.resolveLaunch(input);
+		const configDir = await this.prepareBundledGenerativeUiConfigDir(input.uiPackage);
 		this.stopping = false;
 		this.setState({
 			phase: OpenCodeHostPhase.Starting,
@@ -168,6 +170,7 @@ class OpenCodeWindowHost extends Disposable {
 				QUANTCODE_OPENCODE_PARENT_PID: String(process.pid),
 				QUANTCODE_OPENCODE_REGISTRY: this.registry.location,
 				...(input.uiPackage ? { OPENCODE_UI_PACKAGE: input.uiPackage } : {}),
+				...(configDir ? { OPENCODE_CONFIG_DIR: configDir } : {}),
 				...(input.uiPackage === 'app-ide' && input.enableGenerativeUiCsp ? { OPENCODE_ENABLE_GENERATIVE_UI_CSP: '1' } : {}),
 			},
 			shell: true,
@@ -287,6 +290,28 @@ class OpenCodeWindowHost extends Disposable {
 			hostname,
 			port,
 		};
+	}
+
+	private async prepareBundledGenerativeUiConfigDir(uiPackage: string | undefined): Promise<string | undefined> {
+		if (uiPackage !== 'app-ide') {
+			return undefined;
+		}
+
+		const sourceDir = join(this.environmentService.appRoot, 'opencode', 'bundles', 'generative-ui');
+		if (!fs.existsSync(join(sourceDir, 'package.json'))) {
+			return undefined;
+		}
+
+		const targetDir = join(this.environmentService.userDataPath, 'opencode', 'bundles', `generative-ui-window-${this.windowId}`);
+		try {
+			await fs.promises.rm(targetDir, { recursive: true, force: true });
+			await fs.promises.mkdir(dirname(targetDir), { recursive: true });
+			await fs.promises.cp(sourceDir, targetDir, { recursive: true, force: true });
+			return targetDir;
+		} catch (err) {
+			this.logService.warn(`[OpenCodeHost:${this.windowId}] Failed to prepare generative UI bundle`, err);
+			return undefined;
+		}
 	}
 }
 

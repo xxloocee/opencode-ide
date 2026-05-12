@@ -7,12 +7,31 @@
 
 ## 适用范围
 
-这份文档约束的是 QuantCode 中 OpenCode 右侧助手的代码组织方式。
+这份文档约束的是 `opencode-ide` 中 OpenCode 右侧助手的代码组织方式。
 
 它解决的是两个问题：
 
 1. OpenCode 在主 IDE 里应该挂在哪一层
 2. 后续继续接功能时，哪些改法是允许的，哪些改法应该避免
+
+## 先把名字说清楚
+
+当前文档统一采用下面这套说法：
+
+- `opencode-ide`
+  仓库名，也是 OpenCode IDE 宿主仓库。
+- OpenCode IDE
+  产品层说法，表示当前这个 IDE 宿主。
+- OpenCode
+  内嵌 AI 助手和 sidecar runtime。
+
+但代码里仍然有一些历史技术标识，比如：
+
+- `QuantCode`
+- `SessionsOpenCode*`
+- `QuantCode.exe`
+
+这些如果是真实代码、配置键或产物名，文档里继续保留，不强行改写。
 
 ## 一句话原则
 
@@ -136,6 +155,22 @@
 - `electron-browser/opencodeHostService.ts`
   - 再去依赖 `ISharedProcessService`
 
+## 与 `opencode-private` 的边界
+
+这边是宿主仓库，职责是“承载”和“接线”，不是“重写助手内核”。
+
+具体来说：
+
+- `opencode-private`
+  负责 `packages/opencode`、`packages/app`、`packages/app-ide` 和 AI 会话能力。
+- `opencode-ide`
+  负责 workbench 接入、webview 宿主、shared process、sidecar 生命周期和发行产物。
+
+所以这里默认不要做两件事：
+
+1. 不要把 OpenCode runtime 拆进 IDE 主进程
+2. 不要为了一个 IDE 需求去改写 `opencode-private/packages/app` 的通用结构
+
 ## 代码规范
 
 后续继续改 OpenCode 接入时，遵守下面这些简单规则：
@@ -153,10 +188,12 @@
 
 1. 保持 `workbench/contrib/opencode` 的归属不变
 2. 在这个目录内扩展 bridge、view、desktop host、node host
-3. 只有在未来真的要做独立 sessions app 时，再单独设计 `sessions` 入口
+3. 把与助手 UI 相关的差异尽量收敛到 `opencode-private/packages/app-ide`
+4. 只有在未来真的要做独立 sessions app 时，再单独设计 `sessions` 入口
 
 这样可以避免再次出现：
 
 - 主 workbench 反向依赖 `sessions`
 - 为了修注册时机去改顶层启动入口
 - UI 和 shared process 之间直接耦合
+- IDE 宿主语义反向侵入 OpenCode 通用前端

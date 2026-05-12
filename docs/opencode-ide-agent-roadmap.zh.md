@@ -7,14 +7,14 @@
 
 ## 当前结论
 
-QuantCode 当前做的是主 IDE 里的 OpenCode 助手，而不是独立的 sessions app。
+`opencode-ide` 当前做的是主 IDE 里的 OpenCode 助手，而不是独立的 sessions app。
 
 所以这条线的正确组织方式是：
 
-- `QuantCode` 负责主 IDE 宿主能力和侧边栏入口
+- `opencode-ide` 负责主 IDE 宿主能力和侧边栏入口
 - `opencode serve` 负责 sidecar runtime
-- `app-ide` 负责 IDE 专用前端壳
-- `OpenCode` 在 QuantCode 里的接入代码归 `workbench/contrib/opencode`
+- `opencode-private/packages/app-ide` 负责 IDE 专用前端壳
+- OpenCode 在 IDE 里的接入代码归 `workbench/contrib/opencode`
 
 这次已经明确不再把 OpenCode 右侧助手放在 `src/vs/sessions/`。
 
@@ -39,7 +39,7 @@ QuantCode 当前做的是主 IDE 里的 OpenCode 助手，而不是独立的 ses
 
 ## 当前架构
 
-### QuantCode
+### `opencode-ide`
 
 负责：
 
@@ -56,7 +56,7 @@ QuantCode 当前做的是主 IDE 里的 OpenCode 助手，而不是独立的 ses
 - 持有 agent runtime 和 session 流程
 - 负责模型调用、工具编排、会话状态
 
-### app-ide
+### `opencode-private/packages/app-ide`
 
 负责：
 
@@ -66,7 +66,7 @@ QuantCode 当前做的是主 IDE 里的 OpenCode 助手，而不是独立的 ses
 
 ## 当前代码归属
 
-OpenCode 在 QuantCode 里的实现现在应当稳定在下面这组目录：
+OpenCode 在 `opencode-ide` 里的实现现在应当稳定在下面这组目录：
 
 - `src/vs/workbench/contrib/opencode/browser`
 - `src/vs/workbench/contrib/opencode/electron-browser`
@@ -104,12 +104,28 @@ shared process 注册入口保留在：
 1. OpenCode 的右侧助手属于 `workbench`
 2. sidecar 运行时仍然通过 shared process 管理
 3. `app-ide` 继续复用 OpenCode 已有 agent/session 流程
-4. 不把 OpenCode runtime 拆进 QuantCode 主进程
+4. 不把 OpenCode runtime 拆进 IDE 主进程
 5. 不为了注册 service 去改 `src/vs/code/electron-browser/workbench/workbench.ts`
 
 最后一条很重要。
 
 `workbench.ts` 是主 IDE 顶层启动入口。为了修 service 注册时机去改这里，虽然能强行跑通，但会影响整个 workbench 的加载顺序，属于高入侵方案，应该避免。
+
+## 与 `opencode-private` 的协作方式
+
+这里真正的协作不是“把前端代码搬进来”，而是两层接线：
+
+1. sidecar 层
+   - `opencode-ide` 启动或连接 `opencode serve`
+   - `opencode-private/packages/opencode` 提供 runtime、server 和 UI 装载能力
+2. 前端层
+   - `opencode-private/packages/app-ide` 通过 bridge 请求宿主能力
+   - `opencode-ide` 返回上下文、编辑器操作和事件
+
+所以职责边界很明确：
+
+- IDE 宿主问题，先看 `opencode-ide`
+- 助手前端和会话体验问题，先看 `opencode-private`
 
 ## 后续演进方向
 
@@ -124,7 +140,7 @@ shared process 注册入口保留在：
 当前选区 bridge 的边界是：
 
 - `Ctrl/Cmd+L` 可以打开 OpenCode 面板
-- 如果当前编辑器有非空选区，QuantCode 额外发送 `selection.add`
+- 如果当前编辑器有非空选区，IDE 宿主额外发送 `selection.add`
 - `app-ide` 把 `selection.add` 作为 `type: "file"` 写入 OpenCode 原生 prompt context，复用输入框已有 context chip
 - `selection.add` 成功消费后，`app-ide` 将焦点放到输入框，方便直接输入问题
 - 不为选区另做一套 dock 或重复 UI
@@ -135,6 +151,6 @@ shared process 注册入口保留在：
 - `context.get` / `context.change` 只承载稳定宿主快照：workspace、当前编辑器、当前选区、主题
 - marker/diagnostics 变化不触发 `context.change`
 - diagnostics 如后续需要，走独立的 `diagnostics.get` 拉取接口
-- `context.change` 发送前按快照去重，避免切换过程中的重复事件把 app-ide 推到不必要的重渲染
+- `context.change` 发送前按快照去重，避免切换过程中的重复事件把 `app-ide` 推到不必要的重渲染
 
 如果未来要做的是独立 agent workspace 或单独 sessions 应用，再单独设计 `sessions` 侧入口，而不是复用当前这个 sidebar feature。
