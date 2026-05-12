@@ -3,18 +3,41 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-# QuantCode 安装包构建说明
+# OpenCode IDE 安装包构建说明
 
 ## 适用范围
 
-这份文档说明的是 QuantCode 如何联合本地 `opencode-source` 构建可分发产物，以及当前推荐的构建方式。
+这份文档说明的是 `opencode-ide` 如何联合本地 `opencode-private` 构建可分发产物，以及当前推荐的构建方式。
 
 它解决的是四个问题：
 
-1. `QuantCode` 和 `opencode-source` 在构建链路上的职责怎么划分。
+1. `opencode-ide` 和 `opencode-private` 在构建链路上的职责怎么划分。
 2. Windows 本机怎么快速验证打包链路。
 3. 哪些产物是“可直接运行目录”，哪些才是“安装器”。
 4. 为什么当前不把 GitHub Actions 作为主构建链路。
+
+## 先把命名问题说清楚
+
+产品和仓库已经改名，但构建链路里还有历史标识没有完全清掉。
+
+当前可以把名字分成两层：
+
+1. 当前项目名
+   - 仓库：`opencode-ide`
+   - 宿主产品：OpenCode IDE
+   - 助手内核仓库：`opencode-private`
+2. 仍然真实存在的历史技术标识
+   - 环境变量：`QUANTCODE_OPENCODE_SOURCE_DIR`
+   - 环境变量：`QUANTCODE_OPENCODE_SKIP_BASELINE`
+   - 应用名与产物：`QuantCode.exe`、`QuantCode Preview`
+   - 安装器中间文件：`VSCodeSetup.exe`
+
+文档里的原则是：
+
+- 讲协作关系和仓库边界时，用新名字
+- 讲实际命令、环境变量和当前产物时，用代码里真实存在的旧标识
+
+不然就会出现“文档写得很新，命令一跑全报错”的低山臭水遇知音现场。
 
 ## 一句话原则
 
@@ -25,17 +48,17 @@
 截至当前状态：
 
 1. Windows x64 本机联合打包链路已经验证通过。
-2. QuantCode 能把 `opencode-source` 构建出来的 runtime 打进最终分发目录。
+2. `opencode-ide` 能把 `opencode-private` 构建出来的 runtime 打进最终分发目录。
 3. Windows x64 的系统安装版和用户安装版都已经可以本机生成。
 4. macOS 和 Linux 暂时不走 GitHub Actions，而是在对应设备上手动构建。
 
 ## 目录和职责
 
-### QuantCode
+### OpenCode IDE
 
 仓库路径：
 
-- `D:\Project\github\QuantCode`
+- `D:\Project\Wan\opencode-ide`
 
 职责：
 
@@ -47,7 +70,7 @@
 
 仓库路径：
 
-- `D:\Project\github\opencode-source`
+- `D:\Project\Wan\opencode-private`
 
 职责：
 
@@ -73,13 +96,13 @@
 - 操作系统为 `win32 x64`
 - `bun` 可用
 - `npm` 可用
-- `QuantCode` 依赖已安装
-- `opencode-source` 依赖已安装
+- `opencode-ide` 依赖已安装
+- `opencode-private` 依赖已安装
 
 本机验证时默认使用：
 
-- 本地 `opencode-source`
-- 本地 `QuantCode`
+- 本地 `opencode-private`
+- 本地 `opencode-ide`
 
 不依赖 GitHub Actions。
 
@@ -89,12 +112,14 @@
 
 作用：
 
-- 告诉 QuantCode 去哪里找 OpenCode 源码并构建 runtime。
+- 告诉 `opencode-ide` 去哪里找 OpenCode 源码并构建 runtime。
+
+虽然变量名里还是 `QUANTCODE` 和 `SOURCE_DIR`，但当前在本地仓库布局里，它实际应该指向 `opencode-private`。
 
 本机示例：
 
 ```powershell
-$env:QUANTCODE_OPENCODE_SOURCE_DIR='D:\Project\github\opencode-source'
+$env:QUANTCODE_OPENCODE_SOURCE_DIR='D:\Project\Wan\opencode-private'
 ```
 
 ### `QUANTCODE_OPENCODE_SKIP_BASELINE`
@@ -126,30 +151,30 @@ $env:QUANTCODE_OPENCODE_SKIP_BASELINE='1'
 命令：
 
 ```powershell
-bun run --cwd D:\Project\github\opencode-source\packages\opencode build --single
+bun run --cwd D:\Project\Wan\opencode-private\packages\opencode build --single
 ```
 
 作用：
 
-- 先验证 `opencode-source` 自己是否能在本机正常产出 Windows x64 runtime。
+- 先验证 `opencode-private` 自己是否能在本机正常产出 Windows x64 runtime。
 
 成功后可看到类似产物：
 
-- `D:\Project\github\opencode-source\packages\opencode\dist\opencode-windows-x64\bin\opencode.exe`
+- `D:\Project\Wan\opencode-private\packages\opencode\dist\opencode-windows-x64\bin\opencode.exe`
 
-### 第二步：构建 QuantCode Windows x64 最小分发目录
+### 第二步：构建 OpenCode IDE Windows x64 最小分发目录
 
 命令：
 
 ```powershell
-$env:QUANTCODE_OPENCODE_SOURCE_DIR='D:\Project\github\opencode-source'
+$env:QUANTCODE_OPENCODE_SOURCE_DIR='D:\Project\Wan\opencode-private'
 $env:QUANTCODE_OPENCODE_SKIP_BASELINE='1'
 npm run gulp "vscode-win32-x64-min"
 ```
 
 作用：
 
-- 构建 QuantCode 主程序。
+- 构建 IDE 主程序。
 - 构建并打入 OpenCode runtime。
 - 生成一个“可直接运行”的 Windows 分发目录。
 
@@ -161,12 +186,18 @@ npm run gulp "vscode-win32-x64-min"
 
 成功后主产物目录在：
 
-- `D:\Project\github\VSCode-win32-x64`
+- `D:\Project\Wan\VSCode-win32-x64`
 
 其中关键文件包括：
 
-- 主程序：`D:\Project\github\VSCode-win32-x64\QuantCode.exe`
-- OpenCode runtime：`D:\Project\github\VSCode-win32-x64\resources\app\opencode\bin\opencode.exe`
+- 当前主程序文件名仍是：`D:\Project\Wan\VSCode-win32-x64\QuantCode.exe`
+- OpenCode runtime：`D:\Project\Wan\VSCode-win32-x64\resources\app\opencode\bin\opencode.exe`
+
+这里要特别注意：
+
+- 产品协作关系已经是 OpenCode IDE + OpenCode
+- 但当前 `product.json` 里应用名仍是 `QuantCode Preview`
+- 所以运行文件名还没完成产品级重命名
 
 ### 第三步：补齐 Windows 安装器前置工具
 
@@ -189,7 +220,7 @@ npm run gulp "vscode-win32-x64-inno-updater"
 系统安装版：
 
 ```powershell
-$env:QUANTCODE_OPENCODE_SOURCE_DIR='D:\Project\github\opencode-source'
+$env:QUANTCODE_OPENCODE_SOURCE_DIR='D:\Project\Wan\opencode-private'
 $env:QUANTCODE_OPENCODE_SKIP_BASELINE='1'
 npm run gulp "vscode-win32-x64-system-setup"
 ```
@@ -197,7 +228,7 @@ npm run gulp "vscode-win32-x64-system-setup"
 用户安装版：
 
 ```powershell
-$env:QUANTCODE_OPENCODE_SOURCE_DIR='D:\Project\github\opencode-source'
+$env:QUANTCODE_OPENCODE_SOURCE_DIR='D:\Project\Wan\opencode-private'
 $env:QUANTCODE_OPENCODE_SKIP_BASELINE='1'
 npm run gulp "vscode-win32-x64-user-setup"
 ```
@@ -205,9 +236,14 @@ npm run gulp "vscode-win32-x64-user-setup"
 生成位置：
 
 - 系统安装版：
-  `D:\Project\github\QuantCode\.build\win32-x64\system-setup\VSCodeSetup.exe`
+  `D:\Project\Wan\opencode-ide\.build\win32-x64\system-setup\VSCodeSetup.exe`
 - 用户安装版：
-  `D:\Project\github\QuantCode\.build\win32-x64\user-setup\VSCodeSetup.exe`
+  `D:\Project\Wan\opencode-ide\.build\win32-x64\user-setup\VSCodeSetup.exe`
+
+注意：
+
+- 当前工作流会把这些中间产物再重命名为 `QuantCodeSetup-*` 之类的发布文件名
+- 但构建目录里的原始文件名仍然是 `VSCodeSetup.exe`
 
 ## 产物区别
 
@@ -215,12 +251,12 @@ npm run gulp "vscode-win32-x64-user-setup"
 
 目录：
 
-- `D:\Project\github\VSCode-win32-x64`
+- `D:\Project\Wan\VSCode-win32-x64`
 
 特点：
 
 - 这是安装前的 staging 目录。
-- 可以直接运行 `QuantCode.exe`。
+- 可以直接运行当前实际产物 `QuantCode.exe`。
 - 适合本机快速验证。
 - 不等于安装器安装后的最终目录。
 
@@ -267,11 +303,11 @@ npm run gulp "vscode-win32-x64-user-setup"
 
 ## 运行时检查要点
 
-如果打开 QuantCode 后怀疑 OpenCode 没接上，可以检查：
+如果打开 OpenCode IDE 后怀疑 OpenCode 没接上，可以检查：
 
 1. `resources/app/opencode/bin/opencode.exe` 是否存在。
 2. 本地是否监听了 `127.0.0.1` 端口。
-3. QuantCode 是否和对应端口建立了本地 TCP 连接。
+3. IDE 宿主是否和对应端口建立了本地 TCP 连接。
 
 多窗口场景下：
 
@@ -281,7 +317,7 @@ npm run gulp "vscode-win32-x64-user-setup"
 
 ## macOS 和 Linux 当前建议
 
-当前不把 QuantCode 的 GitHub Actions 当成主构建链路。
+当前不把 `opencode-ide` 的 GitHub Actions 当成主构建链路。
 
 原因：
 
@@ -291,10 +327,10 @@ npm run gulp "vscode-win32-x64-user-setup"
 
 推荐方式：
 
-1. 把 `QuantCode` 拉到对应平台设备。
-2. 把 `opencode-source` 拉到对应平台设备。
-3. 先本机构建 `opencode-source` runtime。
-4. 再在对应平台本机构建 QuantCode。
+1. 把 `opencode-ide` 拉到对应平台设备。
+2. 把 `opencode-private` 拉到对应平台设备。
+3. 先本机构建 `opencode-private` runtime。
+4. 再在对应平台本机构建 `opencode-ide`。
 
 也就是说：
 
@@ -307,7 +343,7 @@ npm run gulp "vscode-win32-x64-user-setup"
 当前不推荐把它作为主开发链路，原因有三个：
 
 1. 多平台矩阵太慢。
-2. `QuantCode` 自己的主构建比 `opencode-source` 慢很多。
+2. `opencode-ide` 自己的主构建比 `opencode-private` 慢很多。
 3. 开发阶段更需要 5 到 20 分钟内得到反馈，而不是几小时后才知道是否打坏。
 
 所以当前更合理的分层是：
@@ -328,25 +364,29 @@ npm run gulp "vscode-win32-x64-user-setup"
 
 这不影响当前开发验证，但不代表正式发布一定可以省略。
 
-### 安装器名称
+### 安装器和应用名
 
-当前 Inno Setup 生成的文件名仍然是：
+当前代码里的实际命名仍然带有明显历史痕迹：
 
-- `VSCodeSetup.exe`
+- `product.json` 里是 `QuantCode Preview`
+- 可执行文件当前仍是 `QuantCode.exe`
+- Inno Setup 中间产物仍是 `VSCodeSetup.exe`
 
-这不影响内容，它实际打的是 QuantCode 包。
+这不影响功能，但意味着“项目协作改名”还没有完全落到最终构建产物。
 
-如果后续需要对外分发，建议再补一层更清晰的产物命名，例如：
+如果后续要彻底完成对外命名切换，建议单独处理：
 
-- `QuantCodeSetup-x64.exe`
-- `QuantCodeUserSetup-x64.exe`
+1. `product.json`
+2. Windows 安装器命名
+3. 工作流产物命名
+4. 文档与下载页文案
 
 ## 推荐使用顺序
 
 后续自己构建时，推荐按这个顺序：
 
-1. 先构建 `opencode-source` runtime。
-2. 再跑 QuantCode 的 `vscode-win32-x64-min`。
+1. 先构建 `opencode-private` runtime。
+2. 再跑 `opencode-ide` 的 `vscode-win32-x64-min`。
 3. 验证 `VSCode-win32-x64\resources\app\opencode\bin\opencode.exe` 是否存在。
 4. 需要安装器时，再补 `vscode-win32-x64-inno-updater`。
 5. 最后跑 `system-setup` 或 `user-setup`。
@@ -355,7 +395,7 @@ npm run gulp "vscode-win32-x64-user-setup"
 
 如果以后还要继续优化构建效率，优先方向是：
 
-1. 缓存 QuantCode 主 bundle。
+1. 缓存 IDE 主 bundle。
 2. 缓存 Copilot 扩展编译。
 3. 把 OpenCode runtime 从“每次现编”演进到“可复用产物”。
 4. 再决定是否恢复 GitHub Actions 多平台自动出包。
