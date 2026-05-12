@@ -9,7 +9,6 @@ For detailed project overview, architecture, coding guidelines, and validation s
 This repository separates upstream sync from stable integration.
 
 - `sync-main` is the upstream-sync branch.
-- A GitHub Action may rebase `sync-main` onto upstream and force-push rewritten history.
 - `sync-main` should stay as close as possible to `upstream/main` and should not carry private feature or integration commits.
 - `main` is the stable integration branch and should not be rewritten by the sync workflow.
 - Do not do day-to-day development directly on `sync-main` or `main`.
@@ -23,7 +22,7 @@ Use this branch model instead:
 - Rebase `dev` or the feature branch onto the latest `sync-main` or `main` before merging changes back.
 - Merge reviewed work into `main` only after the branch has been rebased onto the latest `sync-main`.
 
-When updating local `sync-main`, do not use a regular `git pull`, because the remote `sync-main` history may have been rewritten.
+When updating local `sync-main`, prefer an explicit fetch and reset so the branch stays a clean upstream mirror.
 
 Preferred update flow for local `sync-main`:
 

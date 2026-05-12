@@ -21,7 +21,7 @@
 
 - 这是上游同步分支。
 - 它的目标是尽量等于上游 `upstream/main`。
-- GitHub Action 会定时把它 rebase 到最新上游提交。
+- 需要按需手动把它更新到最新上游提交。
 - 这个分支允许被 force-push 改写历史。
 - 不在这个分支上保留私有功能提交、产品定制提交或稳定集成提交。
 - 不要在这个分支上做日常功能开发。
@@ -45,22 +45,23 @@
 - `origin`：当前私有仓库。
 - `upstream`：官方上游仓库 `https://github.com/microsoft/vscode.git`。
 
-## 自动同步机制
+## 上游同步机制
 
-仓库中的 workflow 文件：
+当前仓库不再依赖自动 rebase workflow 来同步 `sync-main`。
 
-- `.github/workflows/rebase-main-with-vscode.yml`
+原因是：
 
-这个 workflow 的职责是：
+1. 私有仓库上的 GitHub Actions runner 可用性不稳定。
+2. 上游包含 Git LFS 测试资产，而当前仓库的 LFS 带宽会影响自动同步可靠性。
 
-1. 定时获取上游 `upstream/main`。
+因此这里改成手动同步：
+
+1. 获取最新 `upstream/main`。
 2. 检查当前 `sync-main` 是否落后于上游。
-3. 如果落后，则把 `sync-main` rebase 到最新上游。
-4. 成功后 force-push 回私库的 `sync-main`。
+3. 如果落后，则手动把 `sync-main` 更新到最新上游。
+4. 成功后再手动 push 回私库的 `sync-main`。
 
-注意：由于 GitHub 的定时 workflow 只能从默认分支读取定义，这个 workflow 文件会保留在默认分支 `main` 上，但它实际操作的目标分支是 `sync-main`。
-
-这样 `sync-main` 始终扮演“纯上游同步线”的角色，而不是“日常开发线”或“稳定集成线”。
+这样 `sync-main` 仍然扮演“纯上游同步线”的角色，只是同步入口从自动化改成了人工触发。
 
 ## 日常开发流程
 
@@ -89,6 +90,7 @@ git reset --hard origin/sync-main
 ```
 
 注意，这里不要对 `sync-main` 使用普通 `git pull`。因为 `sync-main` 会被自动 rebase 并 force-push，历史可能被改写。
+注意，这里不要对 `sync-main` 使用普通 `git pull`。因为 `sync-main` 的目标是保持为纯净上游镜像，更新时更适合显式 fetch 后再 reset 或重建。
 
 如果本地还没有 `sync-main`，或者需要重新从上游建立纯净基线，可以直接从 `upstream/main` 创建：
 
@@ -127,14 +129,7 @@ git rebase sync-main
 ## GitHub 仓库设置建议
 
 - 默认分支建议设为 `main`。
-- 自动同步目标分支使用 `sync-main`。
 - 日常开发实际使用 `dev`。
-- 仓库需要配置 `UPSTREAM_SYNC_TOKEN` 供同步 workflow 使用。
-
-`UPSTREAM_SYNC_TOKEN` 推荐权限：
-
-- `Contents: Read and write`
-- `Workflows: Read and write`
 
 ## 为什么不用 `main` 直接同步上游
 
