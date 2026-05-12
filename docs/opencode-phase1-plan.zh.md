@@ -9,8 +9,8 @@
 
 第一阶段不是做完整的 AI-first IDE，而是先把这条主链跑通：
 
-1. `QuantCode` 右侧有独立的 `OpenCode` 标签
-2. `QuantCode` 能启动和管理本地 `opencode serve`
+1. `opencode-ide` 右侧有独立的 `OpenCode` 标签
+2. `opencode-ide` 能启动和管理本地 `opencode serve`
 3. `opencode serve` 能按配置选择前端页面
 4. IDE 场景使用 `app-ide`，而不是直接改 `packages/app`
 
@@ -20,13 +20,13 @@
 
 现在有四层：
 
-- `D:\Project\github\QuantCode`
+- `D:\Project\Wan\opencode-ide`
   IDE 宿主。负责入口、webview、sidecar 启停、生命周期管理。
-- `D:\Project\github\opencode-source\packages\opencode`
+- `D:\Project\Wan\opencode-private\packages\opencode`
   OpenCode runtime 和 server。负责 API、事件流、静态页面服务。
-- `D:\Project\github\opencode-source\packages\app`
+- `D:\Project\Wan\opencode-private\packages\app`
   原始 OpenCode 前端。保持不动，继续作为上游通用工作台。
-- `D:\Project\github\opencode-source\packages\app-ide`
+- `D:\Project\Wan\opencode-private\packages\app-ide`
   IDE 专用前端壳。复用 `app` 的组件和功能单元，但接管 IDE 场景下的页面入口、布局和宿主通信。
 
 ## `app-ide` 的作用
@@ -41,11 +41,11 @@
   - 宿主 bridge
   - 当前工作区心智
 
-这层的核心价值是：把 IDE 特有逻辑从 `app` 里隔离出来，避免把上游前端改成只服务 QuantCode 的分叉产品。
+这层的核心价值是：把 IDE 特有逻辑从 `app` 里隔离出来，避免把上游前端改成只服务 IDE 宿主的分叉产品。
 
-## `QuantCode` 侧职责
+## `opencode-ide` 侧职责
 
-`QuantCode` 现在负责三件事：
+`opencode-ide` 现在负责三件事：
 
 1. 注册右侧 `OpenCode` 视图
 2. 启动本地 `opencode serve`，并传入 `OPENCODE_UI_PACKAGE=app-ide`
@@ -54,12 +54,12 @@
 也就是说：
 
 - `app-ide` 决定页面长什么样
-- `QuantCode` 决定什么时候启动、用哪个 UI 包、何时清理进程
+- `opencode-ide` 决定什么时候启动、用哪个 UI 包、何时清理进程
 
 ## 当前第一阶段已经验证通过的部分
 
 - `OpenCode` 已经能作为独立标签出现在右侧
-- `QuantCode` 能通过配置切到 `app-ide`
+- `opencode-ide` 能通过配置切到 `app-ide`
 - `app-ide` 已经能被 `opencode serve` 服务出来
 - `packages/app` 目前保持不动
 
@@ -92,7 +92,7 @@
 - 重写 `packages/app`
 - 深改 VS Code 自带 chat / copilot 内部协议
 - 一开始就追求完整原生 inline edit / diagnostics / diff 能力
-- 把 OpenCode runtime 拆进 QuantCode 内部
+- 把 OpenCode runtime 拆进 IDE 内部
 
 第一阶段的原则是：
 
@@ -106,7 +106,7 @@
 - `packages/app` 保持稳定，不做 IDE 特判
 - `packages/app-ide` 负责 IDE 页面组装
 - `packages/opencode` 负责按环境变量选择要服务的 UI 包
-- `QuantCode` 负责宿主与生命周期
+- `opencode-ide` 负责宿主与生命周期
 - IDE 选区通过 bridge 进入 OpenCode 原生 file prompt context；由于 OpenCode 默认不会在发送后清理普通 file context，`app-ide` 只移除由 `selection.add` 注入的 host selection context，不影响用户手动添加的 file context
 - IDE diagnostics 先保持独立查询能力，不参与 context 快照，也不触发 context 广播
 
@@ -125,7 +125,7 @@
 
 当前阶段下一步只做一件事：
 
-- 把 `QuantCode` 的 sidecar 生命周期管理做稳
+- 把 `opencode-ide` 的 sidecar 生命周期管理做稳
 
 也就是：
 

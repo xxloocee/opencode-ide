@@ -168,6 +168,7 @@ const useCdnSourceMapsForPackagingTasks = isCI;
 const stripSourceMapsInPackagingTasks = isCI;
 const openCodeSourceRepoPath = process.env['QUANTCODE_OPENCODE_SOURCE_DIR'] || path.join(path.dirname(root), 'opencode-source');
 const openCodePackagePath = path.join(openCodeSourceRepoPath, 'packages', 'opencode');
+const openCodeGenerativeUiBundlePath = path.join(openCodeSourceRepoPath, 'packages', 'opencode-generative-ui', 'runtime-config');
 const skipOpenCodeBaselineBuild = process.env['QUANTCODE_OPENCODE_SKIP_BASELINE'] === '1';
 
 interface IBundledOpenCodeRuntimeFile {
@@ -179,6 +180,11 @@ interface IBundledOpenCodeRuntimeFile {
 interface IOpenCodeRuntimeVariant {
 	readonly folder: string;
 	readonly basename: string;
+}
+
+interface IBundledOpenCodeAssetFolder {
+	readonly sourceDir: string;
+	readonly destDir: string;
 }
 
 function getBundledOpenCodeRuntimeVariants(platform: string, arch: string): readonly IOpenCodeRuntimeVariant[] {
@@ -292,6 +298,19 @@ function buildBundledOpenCodeRuntimeTask(platform: string, arch: string): task.T
 			}
 		});
 	});
+}
+
+function getBundledOpenCodeAssetFolders(): readonly IBundledOpenCodeAssetFolder[] {
+	if (!fs.existsSync(openCodeGenerativeUiBundlePath)) {
+		throw new Error(
+			`Bundled OpenCode generative UI config is missing. Expected directory:\n${openCodeGenerativeUiBundlePath}`
+		);
+	}
+
+	return [{
+		sourceDir: openCodeGenerativeUiBundlePath,
+		destDir: path.join('opencode', 'bundles', 'generative-ui'),
+	}];
 }
 const minifyVSCodeTask = task.define('minify-vscode', task.series(
 	bundleVSCodeTask,
@@ -499,6 +518,15 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 					entry.basename = path.parse(file.basename).name;
 					entry.extname = path.parse(file.basename).ext;
 				}))));
+		}
+		for (const folder of getBundledOpenCodeAssetFolders()) {
+			all = es.merge(
+				all,
+				gulp.src(path.join(folder.sourceDir, '**/*'), { base: folder.sourceDir, dot: true })
+					.pipe(rename(entry => {
+						entry.dirname = path.join(folder.destDir, entry.dirname || '');
+					}))
+			);
 		}
 
 		if (platform === 'win32') {
