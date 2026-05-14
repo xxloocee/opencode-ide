@@ -149,17 +149,17 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
 
-      - name: Install QuantCode dependencies
-        shell: bash
-        run: npm ci
-
       - name: Install Linux packaging dependencies
         if: runner.os == 'Linux'
         shell: bash
         run: |
           set -euo pipefail
           sudo apt-get update
-          sudo apt-get install -y fakeroot rpm
+          sudo apt-get install -y fakeroot libkrb5-dev rpm
+
+      - name: Install QuantCode dependencies
+        shell: bash
+        run: npm ci
 
       - name: Generate platform policies
         shell: bash
