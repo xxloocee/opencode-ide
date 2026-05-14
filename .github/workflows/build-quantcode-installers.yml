@@ -211,6 +211,8 @@ jobs:
 
       - name: Build Linux client
         if: runner.os == 'Linux'
+        env:
+          VSCODE_LINUX_PACKAGE_STRICT_DEPS: "false"
         shell: bash
         run: |
           set -euo pipefail
