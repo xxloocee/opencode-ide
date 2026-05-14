@@ -93,6 +93,27 @@ jobs:
           fetch-depth: 0
           token: ${{ secrets.CROSS_REPO_GH_TOKEN || secrets.UPSTREAM_SYNC_TOKEN || github.token }}
 
+      - name: Free Linux runner disk space
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          set -euo pipefail
+          df -h
+          sudo rm -rf \
+            /opt/az \
+            /opt/ghc \
+            /opt/google/chrome \
+            /opt/microsoft/msedge \
+            /usr/local/.ghcup \
+            /usr/local/lib/android \
+            /usr/local/share/boost \
+            /usr/local/share/powershell \
+            /usr/share/dotnet \
+            /usr/share/swift
+          sudo docker image prune -af || true
+          sudo docker builder prune -af || true
+          df -h
+
       - name: Get OpenCode Bun baseline download URL
         id: opencode-bun-url
         shell: bash
