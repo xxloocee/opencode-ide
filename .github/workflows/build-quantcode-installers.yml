@@ -6,7 +6,7 @@ on:
       opencode_repository:
         description: Repository that provides the OpenCode runtime source
         required: false
-        default: ""
+        default: xxloocee/opencode-private
       opencode_ref:
         description: Git ref of the OpenCode runtime repository
         required: false
@@ -26,15 +26,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - runner: windows-latest
-            platform: win32
-            arch: x64
-            policy_target: win32
-          - runner: windows-11-arm
-            platform: win32
-            arch: arm64
-            policy_target: win32
-          - runner: macos-13
+          - runner: macos-15-intel
             platform: darwin
             arch: x64
             policy_target: darwin
@@ -42,14 +34,6 @@ jobs:
             platform: darwin
             arch: arm64
             policy_target: darwin
-          - runner: ubuntu-24.04
-            platform: linux
-            arch: x64
-            policy_target: linux
-          - runner: ubuntu-24.04-arm
-            platform: linux
-            arch: arm64
-            policy_target: linux
 
     runs-on: ${{ matrix.runner }}
 
@@ -71,7 +55,7 @@ jobs:
           ref: ${{ env.OPENCODE_REF }}
           path: opencode-source
           fetch-depth: 0
-          token: ${{ secrets.CROSS_REPO_GH_TOKEN || github.token }}
+          token: ${{ secrets.CROSS_REPO_GH_TOKEN || secrets.UPSTREAM_SYNC_TOKEN || github.token }}
 
       - name: Setup Bun for OpenCode source
         uses: ./opencode-source/.github/actions/setup-bun
