@@ -198,10 +198,18 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
-          npm run gulp "vscode-win32-${{ matrix.arch }}-min-ci"
-          npm run gulp "vscode-win32-${{ matrix.arch }}-inno-updater"
-          npm run gulp "vscode-win32-${{ matrix.arch }}-system-setup"
-          npm run gulp "vscode-win32-${{ matrix.arch }}-user-setup"
+          function Invoke-NativeStep {
+            param([string[]] $Command)
+            & $Command[0] $Command[1..($Command.Length - 1)]
+            if ($LASTEXITCODE -ne 0) {
+              throw "Command failed with exit code ${LASTEXITCODE}: $($Command -join ' ')"
+            }
+          }
+
+          Invoke-NativeStep @("npm", "run", "gulp", "vscode-win32-${{ matrix.arch }}-min")
+          Invoke-NativeStep @("npm", "run", "gulp", "vscode-win32-${{ matrix.arch }}-inno-updater")
+          Invoke-NativeStep @("npm", "run", "gulp", "vscode-win32-${{ matrix.arch }}-system-setup")
+          Invoke-NativeStep @("npm", "run", "gulp", "vscode-win32-${{ matrix.arch }}-user-setup")
 
           $Version = node -p "require('./package.json').version"
           $ArtifactDir = Join-Path $PWD "artifacts"
@@ -211,7 +219,7 @@ jobs:
           if (Test-Path $ZipPath) {
             Remove-Item $ZipPath -Force
           }
-          & 7z a -tzip $ZipPath "..\VSCode-win32-${{ matrix.arch }}\*" "-xr!CodeSignSummary*.md"
+          Invoke-NativeStep @("7z", "a", "-tzip", $ZipPath, "..\VSCode-win32-${{ matrix.arch }}\*", "-xr!CodeSignSummary*.md")
 
           Copy-Item ".build\win32-${{ matrix.arch }}\system-setup\VSCodeSetup.exe" (Join-Path $ArtifactDir "QuantCodeSetup-${{ matrix.arch }}-$Version.exe")
           Copy-Item ".build\win32-${{ matrix.arch }}\user-setup\VSCodeSetup.exe" (Join-Path $ArtifactDir "QuantCodeUserSetup-${{ matrix.arch }}-$Version.exe")
