@@ -18,6 +18,7 @@ on:
         type: choice
         options:
           - darwin
+          - windows
           - linux
           - all
   push:
@@ -49,11 +50,14 @@ jobs:
             darwin)
               matrix='{"include":[{"runner":"macos-15-intel","platform":"darwin","arch":"x64","policy_target":"darwin"},{"runner":"macos-14","platform":"darwin","arch":"arm64","policy_target":"darwin"}]}'
               ;;
+            windows)
+              matrix='{"include":[{"runner":"windows-2022","platform":"win32","arch":"x64","policy_target":"win32"},{"runner":"windows-11-arm","platform":"win32","arch":"arm64","policy_target":"win32"}]}'
+              ;;
             linux)
               matrix='{"include":[{"runner":"ubuntu-24.04","platform":"linux","arch":"x64","policy_target":"linux"},{"runner":"ubuntu-24.04-arm","platform":"linux","arch":"arm64","policy_target":"linux"}]}'
               ;;
             all)
-              matrix='{"include":[{"runner":"macos-15-intel","platform":"darwin","arch":"x64","policy_target":"darwin"},{"runner":"macos-14","platform":"darwin","arch":"arm64","policy_target":"darwin"},{"runner":"ubuntu-24.04","platform":"linux","arch":"x64","policy_target":"linux"},{"runner":"ubuntu-24.04-arm","platform":"linux","arch":"arm64","policy_target":"linux"}]}'
+              matrix='{"include":[{"runner":"macos-15-intel","platform":"darwin","arch":"x64","policy_target":"darwin"},{"runner":"macos-14","platform":"darwin","arch":"arm64","policy_target":"darwin"},{"runner":"windows-2022","platform":"win32","arch":"x64","policy_target":"win32"},{"runner":"windows-11-arm","platform":"win32","arch":"arm64","policy_target":"win32"},{"runner":"ubuntu-24.04","platform":"linux","arch":"x64","policy_target":"linux"},{"runner":"ubuntu-24.04-arm","platform":"linux","arch":"arm64","policy_target":"linux"}]}'
               ;;
             *)
               echo "Unsupported target_platform: $target_platform" >&2
@@ -150,7 +154,7 @@ jobs:
 
       - name: Install OpenCode Python compatibility dependencies
         shell: bash
-        run: python3 -m pip install setuptools || pip install setuptools || true
+        run: python3 -m pip install setuptools || python -m pip install setuptools || pip install setuptools || true
 
       - name: Install OpenCode dependencies
         shell: bash
