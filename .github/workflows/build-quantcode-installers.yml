@@ -160,7 +160,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          npm run gulp "vscode-darwin-${{ matrix.arch }}-min-ci"
+          npm run gulp "vscode-darwin-${{ matrix.arch }}-min"
 
           version=$(node -p "require('./package.json').version")
           artifact_dir="$PWD/artifacts"
