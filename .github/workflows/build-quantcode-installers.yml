@@ -41,6 +41,7 @@ jobs:
       OPENCODE_REPOSITORY: ${{ github.event_name == 'workflow_dispatch' && inputs.opencode_repository || format('{0}/opencode-gui', github.repository_owner) }}
       OPENCODE_REF: ${{ github.event_name == 'workflow_dispatch' && inputs.opencode_ref || 'main' }}
       QUANTCODE_OPENCODE_SOURCE_DIR: ${{ github.workspace }}/opencode-source
+      GITHUB_TOKEN: ${{ secrets.CROSS_REPO_GH_TOKEN || secrets.UPSTREAM_SYNC_TOKEN || github.token }}
 
     steps:
       - name: Checkout QuantCode
@@ -165,8 +166,9 @@ jobs:
           version=$(node -p "require('./package.json').version")
           artifact_dir="$PWD/artifacts"
           app_root="../VSCode-darwin-${{ matrix.arch }}"
-          app_name="$(find "$app_root" -maxdepth 1 -name '*.app' -print -quit | xargs basename)"
-          app_path="$app_root/$app_name"
+          app_path="$(find "$app_root" -maxdepth 1 -type d -name '*.app' -print -quit)"
+          test -n "$app_path"
+          test -d "$app_path"
 
           mkdir -p "$artifact_dir"
           (cd "$app_root" && zip -Xry "$artifact_dir/QuantCode-darwin-${{ matrix.arch }}-$version.zip" .)
