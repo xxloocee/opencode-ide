@@ -77,7 +77,7 @@ jobs:
     runs-on: ${{ matrix.runner }}
 
     env:
-      OPENCODE_REPOSITORY: ${{ github.event_name == 'workflow_dispatch' && inputs.opencode_repository || format('{0}/opencode-gui', github.repository_owner) }}
+      OPENCODE_REPOSITORY: ${{ github.event_name == 'workflow_dispatch' && inputs.opencode_repository || 'xxloocee/opencode-private' }}
       OPENCODE_REF: ${{ github.event_name == 'workflow_dispatch' && inputs.opencode_ref || 'main' }}
       QUANTCODE_OPENCODE_SOURCE_DIR: ${{ github.workspace }}/opencode-source
       GITHUB_TOKEN: ${{ secrets.CROSS_REPO_GH_TOKEN || secrets.UPSTREAM_SYNC_TOKEN || github.token }}
@@ -265,6 +265,34 @@ jobs:
           npm run gulp "vscode-linux-${{ matrix.arch }}-build-rpm"
           cp .build/linux/rpm/*/*.rpm "$artifact_dir/"
 
+      - name: Write build metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          artifact_dir="$PWD/artifacts"
+          mkdir -p "$artifact_dir"
+
+          quantcode_sha="$(git rev-parse HEAD)"
+          opencode_sha="$(git -C "$QUANTCODE_OPENCODE_SOURCE_DIR" rev-parse HEAD)"
+
+          cat > "$artifact_dir/BUILD_INFO-${{ matrix.platform }}-${{ matrix.arch }}.txt" <<EOF
+          workflow=${{ github.workflow }}
+          run_id=${{ github.run_id }}
+          run_attempt=${{ github.run_attempt }}
+          event=${{ github.event_name }}
+          ref=${{ github.ref }}
+          ref_name=${{ github.ref_name }}
+          quantcode_repository=${{ github.repository }}
+          quantcode_sha=$quantcode_sha
+          opencode_repository=${OPENCODE_REPOSITORY}
+          opencode_ref=${OPENCODE_REF}
+          opencode_sha=$opencode_sha
+          platform=${{ matrix.platform }}
+          arch=${{ matrix.arch }}
+          runner=${{ matrix.runner }}
+          EOF
+
       - name: Upload installer artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -290,9 +318,42 @@ jobs:
           cd dist
           sha256sum * > SHA256SUMS.txt
 
+      - name: Generate release notes
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd dist
+
+          {
+            echo "## Build provenance"
+            echo
+            echo "- QuantCode repository: ${{ github.repository }}"
+            echo "- QuantCode ref: ${{ github.ref }}"
+            echo "- QuantCode commit: ${{ github.sha }}"
+            echo "- OpenCode runtime repository: xxloocee/opencode-private"
+            echo "- OpenCode runtime ref: main"
+            echo
+            echo "## Platform builds"
+            echo
+            for file in BUILD_INFO-*.txt; do
+              echo "### ${file#BUILD_INFO-}"
+              echo
+              echo '```text'
+              cat "$file"
+              echo '```'
+              echo
+            done
+            echo "## Checksums"
+            echo
+            echo '```text'
+            cat SHA256SUMS.txt
+            echo '```'
+          } > RELEASE_NOTES.md
+
       - name: Create GitHub release
         uses: softprops/action-gh-release@v2
         with:
           files: |
             dist/*
+          body_path: dist/RELEASE_NOTES.md
           generate_release_notes: true
