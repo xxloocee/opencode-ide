@@ -11,6 +11,15 @@ on:
         description: Git ref of the OpenCode runtime repository
         required: false
         default: main
+      target_platform:
+        description: Platform to build
+        required: false
+        default: darwin
+        type: choice
+        options:
+          - darwin
+          - linux
+          - all
   push:
     tags:
       - "quantcode-v*.*.*"
@@ -21,19 +30,45 @@ permissions:
   contents: write
 
 jobs:
+  plan:
+    runs-on: ubuntu-24.04
+
+    outputs:
+      matrix: ${{ steps.matrix.outputs.matrix }}
+
+    steps:
+      - name: Select build matrix
+        id: matrix
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          target_platform="${{ github.event_name == 'workflow_dispatch' && inputs.target_platform || 'all' }}"
+
+          case "$target_platform" in
+            darwin)
+              matrix='{"include":[{"runner":"macos-15-intel","platform":"darwin","arch":"x64","policy_target":"darwin"},{"runner":"macos-14","platform":"darwin","arch":"arm64","policy_target":"darwin"}]}'
+              ;;
+            linux)
+              matrix='{"include":[{"runner":"ubuntu-24.04","platform":"linux","arch":"x64","policy_target":"linux"},{"runner":"ubuntu-24.04-arm","platform":"linux","arch":"arm64","policy_target":"linux"}]}'
+              ;;
+            all)
+              matrix='{"include":[{"runner":"macos-15-intel","platform":"darwin","arch":"x64","policy_target":"darwin"},{"runner":"macos-14","platform":"darwin","arch":"arm64","policy_target":"darwin"},{"runner":"ubuntu-24.04","platform":"linux","arch":"x64","policy_target":"linux"},{"runner":"ubuntu-24.04-arm","platform":"linux","arch":"arm64","policy_target":"linux"}]}'
+              ;;
+            *)
+              echo "Unsupported target_platform: $target_platform" >&2
+              exit 1
+              ;;
+          esac
+
+          echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
+
   build:
+    needs: plan
+
     strategy:
       fail-fast: false
-      matrix:
-        include:
-          - runner: macos-15-intel
-            platform: darwin
-            arch: x64
-            policy_target: darwin
-          - runner: macos-14
-            platform: darwin
-            arch: arm64
-            policy_target: darwin
+      matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}
 
     runs-on: ${{ matrix.runner }}
 
@@ -179,7 +214,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          npm run gulp "vscode-linux-${{ matrix.arch }}-min-ci"
+          npm run gulp "vscode-linux-${{ matrix.arch }}-min"
 
           version=$(node -p "require('./package.json').version")
           artifact_dir="$PWD/artifacts"
