@@ -1,4 +1,4 @@
-name: build-quantcode-installers
+name: build-opencode-clean-installers
 
 on:
   workflow_dispatch:
@@ -14,7 +14,7 @@ on:
       target_platform:
         description: Platform to build
         required: false
-        default: darwin
+        default: windows
         type: choice
         options:
           - darwin
@@ -23,7 +23,7 @@ on:
           - all
   push:
     tags:
-      - "quantcode-v*.*.*"
+      - "opencode-clean-v*.*.*"
 
 concurrency: ${{ github.workflow }}-${{ github.ref }}
 
@@ -44,14 +44,14 @@ jobs:
         run: |
           set -euo pipefail
 
-          target_platform="${{ github.event_name == 'workflow_dispatch' && inputs.target_platform || 'all' }}"
+          target_platform="${{ github.event_name == 'workflow_dispatch' && inputs.target_platform || 'windows' }}"
 
           case "$target_platform" in
             darwin)
               matrix='{"include":[{"runner":"macos-15-intel","platform":"darwin","arch":"x64","policy_target":"darwin"},{"runner":"macos-14","platform":"darwin","arch":"arm64","policy_target":"darwin"}]}'
               ;;
             windows)
-              matrix='{"include":[{"runner":"windows-2022","platform":"win32","arch":"x64","policy_target":"win32"},{"runner":"windows-11-arm","platform":"win32","arch":"arm64","policy_target":"win32"}]}'
+              matrix='{"include":[{"runner":"windows-2022","platform":"win32","arch":"x64","policy_target":"win32"}]}'
               ;;
             linux)
               matrix='{"include":[{"runner":"ubuntu-24.04","platform":"linux","arch":"x64","policy_target":"linux"},{"runner":"ubuntu-24.04-arm","platform":"linux","arch":"arm64","policy_target":"linux"}]}'
@@ -79,11 +79,11 @@ jobs:
     env:
       OPENCODE_REPOSITORY: ${{ github.event_name == 'workflow_dispatch' && inputs.opencode_repository || 'xxloocee/opencode-private' }}
       OPENCODE_REF: ${{ github.event_name == 'workflow_dispatch' && inputs.opencode_ref || 'main' }}
-      QUANTCODE_OPENCODE_SOURCE_DIR: ${{ github.workspace }}/opencode-source
+      OPENCODE_IDE_OPENCODE_SOURCE_DIR: ${{ github.workspace }}/opencode-source
       GITHUB_TOKEN: ${{ secrets.CROSS_REPO_GH_TOKEN || secrets.UPSTREAM_SYNC_TOKEN || github.token }}
 
     steps:
-      - name: Checkout QuantCode
+      - name: Checkout OpenCode IDE
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
@@ -182,9 +182,17 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y fakeroot libkrb5-dev libx11-dev libxkbfile-dev pkg-config rpm
 
-      - name: Install QuantCode dependencies
+      - name: Install OpenCode IDE dependencies
         shell: bash
         run: npm ci
+
+      - name: Sanitize OpenCode IDE release tree
+        shell: bash
+        run: |
+          set -euo pipefail
+          node tools/sanitize/sanitize.test.mjs
+          node tools/sanitize/apply.mjs --profile=clean-full
+          node tools/sanitize/verify.mjs --profile=clean-full
 
       - name: Generate platform policies
         shell: bash
@@ -215,14 +223,14 @@ jobs:
           $ArtifactDir = Join-Path $PWD "artifacts"
           New-Item -ItemType Directory -Path $ArtifactDir -Force | Out-Null
 
-          $ZipPath = Join-Path $ArtifactDir "QuantCode-win32-${{ matrix.arch }}-$Version.zip"
+          $ZipPath = Join-Path $ArtifactDir "OpenCodeIDE-win32-${{ matrix.arch }}-$Version.zip"
           if (Test-Path $ZipPath) {
             Remove-Item $ZipPath -Force
           }
           Invoke-NativeStep @("7z", "a", "-tzip", $ZipPath, "..\VSCode-win32-${{ matrix.arch }}\*", "-xr!CodeSignSummary*.md")
 
-          Copy-Item ".build\win32-${{ matrix.arch }}\system-setup\VSCodeSetup.exe" (Join-Path $ArtifactDir "QuantCodeSetup-${{ matrix.arch }}-$Version.exe")
-          Copy-Item ".build\win32-${{ matrix.arch }}\user-setup\VSCodeSetup.exe" (Join-Path $ArtifactDir "QuantCodeUserSetup-${{ matrix.arch }}-$Version.exe")
+          Copy-Item ".build\win32-${{ matrix.arch }}\system-setup\VSCodeSetup.exe" (Join-Path $ArtifactDir "OpenCodeIDESetup-${{ matrix.arch }}-$Version.exe")
+          Copy-Item ".build\win32-${{ matrix.arch }}\user-setup\VSCodeSetup.exe" (Join-Path $ArtifactDir "OpenCodeIDEUserSetup-${{ matrix.arch }}-$Version.exe")
 
       - name: Build macOS client
         if: runner.os == 'macOS'
@@ -239,8 +247,8 @@ jobs:
           test -d "$app_path"
 
           mkdir -p "$artifact_dir"
-          (cd "$app_root" && zip -Xry "$artifact_dir/QuantCode-darwin-${{ matrix.arch }}-$version.zip" .)
-          hdiutil create -volname "QuantCode Preview" -srcfolder "$app_path" -ov -format UDZO "$artifact_dir/QuantCode-darwin-${{ matrix.arch }}-$version.dmg"
+          (cd "$app_root" && zip -Xry "$artifact_dir/OpenCodeIDE-darwin-${{ matrix.arch }}-$version.zip" .)
+          hdiutil create -volname "OpenCode IDE Preview" -srcfolder "$app_path" -ov -format UDZO "$artifact_dir/OpenCodeIDE-darwin-${{ matrix.arch }}-$version.dmg"
 
       - name: Build Linux client
         if: runner.os == 'Linux'
@@ -255,7 +263,7 @@ jobs:
           artifact_dir="$PWD/artifacts"
           mkdir -p "$artifact_dir"
 
-          tar -czf "$artifact_dir/QuantCode-linux-${{ matrix.arch }}-$version.tar.gz" -C .. "VSCode-linux-${{ matrix.arch }}"
+          tar -czf "$artifact_dir/OpenCodeIDE-linux-${{ matrix.arch }}-$version.tar.gz" -C .. "VSCode-linux-${{ matrix.arch }}"
 
           npm run gulp "vscode-linux-${{ matrix.arch }}-prepare-deb"
           npm run gulp "vscode-linux-${{ matrix.arch }}-build-deb"
@@ -273,8 +281,8 @@ jobs:
           artifact_dir="$PWD/artifacts"
           mkdir -p "$artifact_dir"
 
-          quantcode_sha="$(git rev-parse HEAD)"
-          opencode_sha="$(git -C "$QUANTCODE_OPENCODE_SOURCE_DIR" rev-parse HEAD)"
+          opencode_ide_sha="$(git rev-parse HEAD)"
+          opencode_sha="$(git -C "$OPENCODE_IDE_OPENCODE_SOURCE_DIR" rev-parse HEAD)"
 
           cat > "$artifact_dir/BUILD_INFO-${{ matrix.platform }}-${{ matrix.arch }}.txt" <<EOF
           workflow=${{ github.workflow }}
@@ -283,8 +291,8 @@ jobs:
           event=${{ github.event_name }}
           ref=${{ github.ref }}
           ref_name=${{ github.ref_name }}
-          quantcode_repository=${{ github.repository }}
-          quantcode_sha=$quantcode_sha
+          opencode_ide_repository=${{ github.repository }}
+          opencode_ide_sha=$opencode_ide_sha
           opencode_repository=${OPENCODE_REPOSITORY}
           opencode_ref=${OPENCODE_REF}
           opencode_sha=$opencode_sha
@@ -296,12 +304,12 @@ jobs:
       - name: Upload installer artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: quantcode-${{ matrix.platform }}-${{ matrix.arch }}
+          name: opencode-ide-${{ matrix.platform }}-${{ matrix.arch }}
           path: artifacts/*
 
   release:
     needs: build
-    if: startsWith(github.ref, 'refs/tags/quantcode-v')
+    if: startsWith(github.ref, 'refs/tags/opencode-clean-v')
     runs-on: ubuntu-24.04
 
     steps:
@@ -327,9 +335,9 @@ jobs:
           {
             echo "## Build provenance"
             echo
-            echo "- QuantCode repository: ${{ github.repository }}"
-            echo "- QuantCode ref: ${{ github.ref }}"
-            echo "- QuantCode commit: ${{ github.sha }}"
+            echo "- OpenCode IDE repository: ${{ github.repository }}"
+            echo "- OpenCode IDE ref: ${{ github.ref }}"
+            echo "- OpenCode IDE commit: ${{ github.sha }}"
             echo "- OpenCode runtime repository: xxloocee/opencode-private"
             echo "- OpenCode runtime ref: main"
             echo
