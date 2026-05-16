@@ -20,7 +20,9 @@
     "rewrite-sessions-official-entries",
     "rewrite-product-fallback-defaults",
     "rewrite-copilot-ui-references",
-    "rewrite-opencode-dev-launcher"
+    "rewrite-onboarding-signin-defaults",
+    "rewrite-opencode-dev-launcher",
+    "verify-opencode-bridge"
   ],
   "overlays": [
     "clean-full"
