@@ -1,0 +1,187 @@
+﻿diff --git a/src/vs/platform/defaultAccount/common/defaultAccount.ts b/src/vs/platform/defaultAccount/common/defaultAccount.ts
+index f2d19fa45db..4bc436de6f5 100644
+--- a/src/vs/platform/defaultAccount/common/defaultAccount.ts
++++ b/src/vs/platform/defaultAccount/common/defaultAccount.ts
+@@ -5,6 +5,7 @@
+ 
+ import { ICopilotTokenInfo, IDefaultAccount, IDefaultAccountAuthenticationProvider, IPolicyData } from '../../../base/common/defaultAccount.js';
+ import { Event } from '../../../base/common/event.js';
++import { Disposable } from '../../../base/common/lifecycle.js';
+ import { createDecorator } from '../../instantiation/common/instantiation.js';
+ 
+ export interface IDefaultAccountProvider {
+@@ -20,6 +21,41 @@ export interface IDefaultAccountProvider {
+ 	signOut(): Promise<void>;
+ }
+ 
++export class NullDefaultAccountService extends Disposable implements IDefaultAccountService {
++	declare readonly _serviceBrand: undefined;
++
++	readonly onDidChangeDefaultAccount = Event.None;
++	readonly onDidChangePolicyData = Event.None;
++	readonly onDidChangeCopilotTokenInfo = Event.None;
++	readonly policyData = null;
++	readonly currentDefaultAccount = null;
++	readonly copilotTokenInfo = null;
++
++	getDefaultAccount(): Promise<IDefaultAccount | null> {
++		return Promise.resolve(null);
++	}
++
++	getDefaultAccountAuthenticationProvider(): IDefaultAccountAuthenticationProvider {
++		return { id: 'opencode', name: 'OpenCode', enterprise: false };
++	}
++
++	setDefaultAccountProvider(_provider: IDefaultAccountProvider): void {
++		// OpenCode IDE ships without a default Microsoft/GitHub account provider.
++	}
++
++	refresh(_options?: { forceRefresh?: boolean }): Promise<IDefaultAccount | null> {
++		return Promise.resolve(null);
++	}
++
++	signIn(_options?: { additionalScopes?: readonly string[];[key: string]: unknown }): Promise<IDefaultAccount | null> {
++		return Promise.resolve(null);
++	}
++
++	signOut(): Promise<void> {
++		return Promise.resolve();
++	}
++}
++
+ export const IDefaultAccountService = createDecorator<IDefaultAccountService>('defaultAccountService');
+ 
+ export interface IDefaultAccountService {
+diff --git a/src/vs/workbench/browser/parts/globalCompositeBar.ts b/src/vs/workbench/browser/parts/globalCompositeBar.ts
+index 48220d63dc3..af47348e1b3 100644
+--- a/src/vs/workbench/browser/parts/globalCompositeBar.ts
++++ b/src/vs/workbench/browser/parts/globalCompositeBar.ts
+@@ -742,7 +742,7 @@ function simpleActivityContextMenuActions(storageService: IStorageService, isAcc
+ }
+ 
+ export function isAccountsActionVisible(storageService: IStorageService): boolean {
+-	return storageService.getBoolean(AccountsActivityActionViewItem.ACCOUNTS_VISIBILITY_PREFERENCE_KEY, StorageScope.PROFILE, true);
++	return storageService.getBoolean(AccountsActivityActionViewItem.ACCOUNTS_VISIBILITY_PREFERENCE_KEY, StorageScope.PROFILE, false);
+ }
+ 
+ function setAccountsActionVisible(storageService: IStorageService, visible: boolean) {
+diff --git a/src/vs/workbench/browser/web.main.ts b/src/vs/workbench/browser/web.main.ts
+index 1dfedf4e6ec..cf46a83570f 100644
+--- a/src/vs/workbench/browser/web.main.ts
++++ b/src/vs/workbench/browser/web.main.ts
+@@ -96,8 +96,7 @@ import { ISecretStorageService } from '../../platform/secrets/common/secrets.js'
+ import { TunnelSource } from '../services/remote/common/tunnelModel.js';
+ import { mainWindow } from '../../base/browser/window.js';
+ import { INotificationService, Severity } from '../../platform/notification/common/notification.js';
+-import { IDefaultAccountService } from '../../platform/defaultAccount/common/defaultAccount.js';
+-import { DefaultAccountService } from '../services/accounts/browser/defaultAccount.js';
++import { IDefaultAccountService, NullDefaultAccountService } from '../../platform/defaultAccount/common/defaultAccount.js';
+ import { AccountPolicyService, IAccountPolicyGateService } from '../services/policies/common/accountPolicyService.js';
+ 
+ export interface IBrowserMainWorkbench {
+@@ -360,7 +359,7 @@ export class BrowserMain extends Disposable {
+ 		this._register(RemoteFileSystemProviderClient.register(remoteAgentService, fileService, logService));
+ 
+ 		// Default Account
+-		const defaultAccountService = this._register(new DefaultAccountService(productService));
++		const defaultAccountService = this._register(new NullDefaultAccountService());
+ 		serviceCollection.set(IDefaultAccountService, defaultAccountService);
+ 
+ 		// Policies
+diff --git a/src/vs/workbench/contrib/extensions/browser/extensions.contribution.ts b/src/vs/workbench/contrib/extensions/browser/extensions.contribution.ts
+index 82c7072ff42..a6c3a21f23f 100644
+--- a/src/vs/workbench/contrib/extensions/browser/extensions.contribution.ts
++++ b/src/vs/workbench/contrib/extensions/browser/extensions.contribution.ts
+@@ -51,7 +51,6 @@ import { IsSessionsWindowContext, ResourceContextKey, WorkbenchStateContext } fr
+ import { IWorkbenchContribution, IWorkbenchContributionsRegistry, registerWorkbenchContribution2, Extensions as WorkbenchExtensions, WorkbenchPhase } from '../../../common/contributions.js';
+ import { EditorExtensions } from '../../../common/editor.js';
+ import { IViewContainersRegistry, Extensions as ViewContainerExtensions, ViewContainerLocation } from '../../../common/views.js';
+-import { DEFAULT_ACCOUNT_SIGN_IN_COMMAND } from '../../../services/accounts/browser/defaultAccount.js';
+ import { IEditorService } from '../../../services/editor/common/editorService.js';
+ import { EnablementState, IExtensionManagementServerService, IPublisherInfo, IWorkbenchExtensionEnablementService, IWorkbenchExtensionManagementService } from '../../../services/extensionManagement/common/extensionManagement.js';
+ import { IExtensionIgnoredRecommendationsService, IExtensionRecommendationsService } from '../../../services/extensionRecommendations/common/extensionRecommendations.js';
+@@ -89,6 +88,8 @@ import { ExtensionsWorkbenchService } from './extensionsWorkbenchService.js';
+ import './media/extensionManagement.css';
+ import { UnsupportedExtensionsMigrationContrib } from './unsupportedExtensionsMigrationContribution.js';
+ 
++const DEFAULT_ACCOUNT_SIGN_IN_COMMAND = 'workbench.actions.accounts.signIn';
++
+ // Singletons
+ registerSingleton(IExtensionsWorkbenchService, ExtensionsWorkbenchService, InstantiationType.Eager /* Auto updates extensions */);
+ registerSingleton(IExtensionRecommendationNotificationService, ExtensionRecommendationNotificationService, InstantiationType.Delayed);
+@@ -381,24 +382,24 @@ CommandsRegistry.registerCommand({
+ 			{
+ 				name: 'options',
+ 				description: '(optional) Options for installing the extension. Object with the following properties: ' +
+-					'`installOnlyNewlyAddedFromExtensionPackVSIX`: When enabled, VS Code installs only newly added extensions from the extension pack VSIX. This option is considered only when installing VSIX. ',
++					'`installOnlyNewlyAddedFromExtensionPackVSIX`: When enabled, OpenCode IDE installs only newly added extensions from the extension pack VSIX. This option is considered only when installing VSIX. ',
+ 				isOptional: true,
+ 				schema: {
+ 					'type': 'object',
+ 					'properties': {
+ 						'installOnlyNewlyAddedFromExtensionPackVSIX': {
+ 							'type': 'boolean',
+-							'description': localize('workbench.extensions.installExtension.option.installOnlyNewlyAddedFromExtensionPackVSIX', "When enabled, VS Code installs only newly added extensions from the extension pack VSIX. This option is considered only while installing a VSIX."),
++							'description': localize('workbench.extensions.installExtension.option.installOnlyNewlyAddedFromExtensionPackVSIX', "When enabled, OpenCode IDE installs only newly added extensions from the extension pack VSIX. This option is considered only while installing a VSIX."),
+ 							default: false
+ 						},
+ 						'installPreReleaseVersion': {
+ 							'type': 'boolean',
+-							'description': localize('workbench.extensions.installExtension.option.installPreReleaseVersion', "When enabled, VS Code installs the pre-release version of the extension if available."),
++							'description': localize('workbench.extensions.installExtension.option.installPreReleaseVersion', "When enabled, OpenCode IDE installs the pre-release version of the extension if available."),
+ 							default: false
+ 						},
+ 						'donotSync': {
+ 							'type': 'boolean',
+-							'description': localize('workbench.extensions.installExtension.option.donotSync', "When enabled, VS Code do not sync this extension when Settings Sync is on."),
++							'description': localize('workbench.extensions.installExtension.option.donotSync', "When enabled, OpenCode IDE does not sync this extension when Settings Sync is on."),
+ 							default: false
+ 						},
+ 						'justification': {
+@@ -928,8 +929,8 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
+ 				if (requireReload) {
+ 					notificationService.prompt(
+ 						Severity.Info,
+-						vsixs.length > 1 ? localize('InstallVSIXs.successReload', "Completed installing extensions. Please reload Visual Studio Code to enable them.")
+-							: localize('InstallVSIXAction.successReload', "Completed installing extension. Please reload Visual Studio Code to enable it."),
++						vsixs.length > 1 ? localize('InstallVSIXs.successReload', "Completed installing extensions. Please reload OpenCode IDE to enable them.")
++							: localize('InstallVSIXAction.successReload', "Completed installing extension. Please reload OpenCode IDE to enable it."),
+ 						[{
+ 							label: localize('InstallVSIXAction.reloadNow', "Reload Now"),
+ 							run: () => hostService.reload()
+diff --git a/src/vs/workbench/contrib/extensions/browser/extensionsViewlet.ts b/src/vs/workbench/contrib/extensions/browser/extensionsViewlet.ts
+index 8bfac4292b4..6f496e60fbc 100644
+--- a/src/vs/workbench/contrib/extensions/browser/extensionsViewlet.ts
++++ b/src/vs/workbench/contrib/extensions/browser/extensionsViewlet.ts
+@@ -66,7 +66,7 @@ import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js
+ import { KeyCode } from '../../../../base/common/keyCodes.js';
+ import { IExtensionGalleryManifest, IExtensionGalleryManifestService, ExtensionGalleryManifestStatus } from '../../../../platform/extensionManagement/common/extensionGalleryManifest.js';
+ import { URI } from '../../../../base/common/uri.js';
+-import { DEFAULT_ACCOUNT_SIGN_IN_COMMAND } from '../../../services/accounts/browser/defaultAccount.js';
++const DEFAULT_ACCOUNT_SIGN_IN_COMMAND = 'workbench.actions.accounts.signIn';
+ 
+ export const ExtensionsSortByContext = new RawContextKey<string>('extensionsSortByValue', '');
+ export const SearchMarketplaceExtensionsContext = new RawContextKey<boolean>('searchMarketplaceExtensions', false);
+diff --git a/src/vs/workbench/electron-browser/desktop.main.ts b/src/vs/workbench/electron-browser/desktop.main.ts
+index 3b83b56e413..48a5089232f 100644
+--- a/src/vs/workbench/electron-browser/desktop.main.ts
++++ b/src/vs/workbench/electron-browser/desktop.main.ts
+@@ -61,8 +61,7 @@ import { ElectronRemoteResourceLoader } from '../../platform/remote/electron-bro
+ import { IConfigurationService } from '../../platform/configuration/common/configuration.js';
+ import { applyZoom } from '../../platform/window/electron-browser/window.js';
+ import { mainWindow } from '../../base/browser/window.js';
+-import { IDefaultAccountService } from '../../platform/defaultAccount/common/defaultAccount.js';
+-import { DefaultAccountService } from '../services/accounts/browser/defaultAccount.js';
++import { IDefaultAccountService, NullDefaultAccountService } from '../../platform/defaultAccount/common/defaultAccount.js';
+ import { AccountPolicyService, IAccountPolicyGateService } from '../services/policies/common/accountPolicyService.js';
+ import { MultiplexPolicyService } from '../services/policies/common/multiplexPolicyService.js';
+ 
+@@ -210,7 +209,7 @@ export class DesktopMain extends Disposable {
+ 		}
+ 
+ 		// Default Account
+-		const defaultAccountService = this._register(new DefaultAccountService(productService));
++		const defaultAccountService = this._register(new NullDefaultAccountService());
+ 		serviceCollection.set(IDefaultAccountService, defaultAccountService);
+ 
+ 		// Policies

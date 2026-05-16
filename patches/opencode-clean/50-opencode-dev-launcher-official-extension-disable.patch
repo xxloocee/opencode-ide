@@ -1,0 +1,17 @@
+﻿diff --git a/scripts/code-opencode-dev.ps1 b/scripts/code-opencode-dev.ps1
+index 9658e747ba6..41d78fb93e9 100644
+--- a/scripts/code-opencode-dev.ps1
++++ b/scripts/code-opencode-dev.ps1
+@@ -70,5 +70,11 @@ if ($NoLaunch) {
+ }
+ 
+ $env:OPENCODE_CONFIG_DIR = $generativeUiConfigDir
+-& $codeBat "--user-data-dir=$userDataDir" @CodeArgs
++$cleanDisabledExtensionArgs = @(
++  '--disable-extension=GitHub.copilot-chat',
++  '--disable-extension=vscode.github-authentication',
++  '--disable-extension=vscode.microsoft-authentication'
++)
++
++& $codeBat "--user-data-dir=$userDataDir" @cleanDisabledExtensionArgs @CodeArgs
+ exit $LASTEXITCODE
