@@ -237,6 +237,21 @@ class OpenCodeWebviewContribution extends Disposable implements IWorkbenchContri
 	<script nonce="${nonce}">
 		const vscode = acquireVsCodeApi();
 		const app = document.getElementById('app');
+		const pendingHostMessages = [];
+		let appLoaded = false;
+		const postToApp = (data) => {
+			if (!appLoaded) {
+				pendingHostMessages.push(data);
+				return;
+			}
+			app.contentWindow?.postMessage(data, ${JSON.stringify(origin)});
+		};
+		app.addEventListener('load', () => {
+			appLoaded = true;
+			for (const data of pendingHostMessages.splice(0)) {
+				app.contentWindow?.postMessage(data, ${JSON.stringify(origin)});
+			}
+		});
 		window.addEventListener('message', (evt) => {
 			if (evt.source === app.contentWindow && evt.origin === ${JSON.stringify(origin)}) {
 				if (evt.data?.source === 'opencode-bridge') {
@@ -245,11 +260,11 @@ class OpenCodeWebviewContribution extends Disposable implements IWorkbenchContri
 				return;
 			}
 			if (evt.data?.source === 'opencode-host') {
-				app.contentWindow?.postMessage(evt.data, ${JSON.stringify(origin)});
+				postToApp(evt.data);
 				return;
 			}
 			if (evt.data?.source === 'opencode-host-event') {
-				app.contentWindow?.postMessage(evt.data, ${JSON.stringify(origin)});
+				postToApp(evt.data);
 			}
 		});
 	</script>
