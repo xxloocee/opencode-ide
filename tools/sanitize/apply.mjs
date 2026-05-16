@@ -350,7 +350,11 @@ function rewriteBrandingText() {
 	rewriteTextFile(path.join(root, 'src', 'vs', 'workbench', 'contrib', 'welcomeOnboarding', 'browser', 'onboardingVariationA.ts'), text => text
 		.replace(/import \{ assertDefined \} from '..\/..\/..\/..\/base\/common\/types\.js';\r?\n/, '')
 		.replace(/assertDefined\(product\.defaultChatAgent, 'Onboarding requires a default chat agent product configuration\.'\);\r?\nconst defaultChat = product\.defaultChatAgent;/, 'const defaultChat = product.defaultChatAgent;')
-		.replace('private readonly steps = ONBOARDING_STEPS;', 'private readonly steps = defaultChat ? ONBOARDING_STEPS : ONBOARDING_STEPS.filter(step => step !== OnboardingStepId.SignIn);')
+		.replace(/private readonly steps = .*ONBOARDING_STEPS.*;/, 'private readonly steps = ONBOARDING_STEPS.filter(step => step !== OnboardingStepId.SignIn);')
+	);
+
+	rewriteTextFile(path.join(root, 'src', 'vs', 'workbench', 'contrib', 'welcomeOnboarding', 'common', 'onboardingTypes.ts'), text => text
+		.replace(/\tOnboardingStepId\.SignIn,\r?\n/, '')
 	);
 
 	console.log('[sanitize] rewrite-branding-text');

@@ -21,7 +21,9 @@ const verifiesAccountsActivityDefault = activeSteps.has('rewrite-accounts-activi
 const verifiesSessionsOfficialEntries = activeSteps.has('rewrite-sessions-official-entries');
 const verifiesProductFallbackDefaults = activeSteps.has('rewrite-product-fallback-defaults');
 const verifiesCopilotUiReferences = activeSteps.has('rewrite-copilot-ui-references');
+const verifiesOnboardingSignInDefaults = activeSteps.has('rewrite-onboarding-signin-defaults');
 const verifiesOpenCodeDevLauncher = activeSteps.has('rewrite-opencode-dev-launcher');
+const verifiesOpenCodeBridge = activeSteps.has('verify-opencode-bridge');
 const verifiesBrandingText = activeSteps.has('rewrite-branding-text');
 
 let failed = false;
@@ -310,6 +312,28 @@ if (verifiesCopilotUiReferences) {
 	}
 }
 
+if (verifiesOnboardingSignInDefaults) {
+	const checks = [
+		['src/vs/workbench/contrib/welcomeOnboarding/common/onboardingTypes.ts', /ONBOARDING_STEPS[\s\S]*OnboardingStepId\.SignIn/],
+		['src/vs/workbench/contrib/welcomeOnboarding/browser/onboardingVariationA.ts', /private readonly steps = (?:defaultChat \? )?ONBOARDING_STEPS;/],
+		['src/vs/workbench/contrib/welcomeOnboarding/browser/onboardingVariationA.ts', /private readonly steps = defaultChat \? ONBOARDING_STEPS/],
+	];
+
+	for (const [rel, pattern] of checks) {
+		const text = fs.readFileSync(path.join(root, rel), 'utf8');
+		if (pattern.test(text)) {
+			console.error(`[sanitize] failed: ${rel}.onboardingSignIn`);
+			failed = true;
+		}
+	}
+
+	const variation = fs.readFileSync(path.join(root, 'src/vs/workbench/contrib/welcomeOnboarding/browser/onboardingVariationA.ts'), 'utf8');
+	if (!/private readonly steps = ONBOARDING_STEPS\.filter\(step => step !== OnboardingStepId\.SignIn\);/.test(variation)) {
+		console.error('[sanitize] failed: src/vs/workbench/contrib/welcomeOnboarding/browser/onboardingVariationA.ts.onboardingSignIn');
+		failed = true;
+	}
+}
+
 if (verifiesOpenCodeDevLauncher) {
 	const rel = 'scripts/code-opencode-dev.ps1';
 	const file = path.join(root, rel);
@@ -326,6 +350,30 @@ if (verifiesOpenCodeDevLauncher) {
 				failed = true;
 				break;
 			}
+		}
+	}
+}
+
+if (verifiesOpenCodeBridge) {
+	const bridgeChecks = [
+		['src/vs/workbench/workbench.desktop.main.ts', /contrib\/opencode\/electron-browser\/opencodeHostService/],
+		['src/vs/workbench/workbench.desktop.main.ts', /contrib\/opencode\/browser\/opencode\.contribution/],
+		['src/vs/workbench/workbench.desktop.main.ts', /contrib\/opencode\/browser\/opencodeWebview\.contribution/],
+		['src/vs/workbench/contrib/opencode/browser/opencodeWebview.contribution.ts', /webviews\.register\(OpenCodeViewId/],
+		['src/vs/workbench/contrib/opencode/browser/opencodeWebview.contribution.ts', /evt\.data\?\.source === 'opencode-bridge'[\s\S]*vscode\.postMessage\(evt\.data\)/],
+		['src/vs/workbench/contrib/opencode/browser/opencodeWebview.contribution.ts', /evt\.data\?\.source === 'opencode-host'[\s\S]*postToApp\(evt\.data\)/],
+		['src/vs/workbench/contrib/opencode/browser/opencodeWebview.contribution.ts', /evt\.data\?\.source === 'opencode-host-event'[\s\S]*postToApp\(evt\.data\)/],
+		['src/vs/workbench/contrib/opencode/browser/opencodeProtocol.ts', /method: 'context\.get'/],
+		['src/vs/workbench/contrib/opencode/browser/opencodeProtocol.ts', /method: 'editor\.open'/],
+		['src/vs/workbench/contrib/opencode/browser/opencodeProtocol.ts', /method: 'terminal\.last\.get'/],
+		['src/vs/workbench/contrib/opencode/browser/opencodeProtocol.ts', /method: 'diagnostics\.workspace\.get'/],
+	];
+
+	for (const [rel, pattern] of bridgeChecks) {
+		const text = fs.readFileSync(path.join(root, rel), 'utf8');
+		if (!pattern.test(text)) {
+			console.error(`[sanitize] failed: ${rel}.opencodeBridge`);
+			failed = true;
 		}
 	}
 }

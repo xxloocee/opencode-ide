@@ -158,6 +158,15 @@ test('verify clean-full rejects Copilot UI references', () => {
 	assert.match(result.stderr + result.stdout, /copilotUi/);
 });
 
+test('verify clean-full rejects onboarding sign-in defaults', () => {
+	const root = makeFixtureRoot({ includeOnboardingSignInDefault: true });
+
+	const result = runNode(verifyScript, `--root=${root}`, '--profile=clean-full');
+
+	assert.notEqual(result.status, 0);
+	assert.match(result.stderr + result.stdout, /onboardingSignIn/);
+});
+
 test('verify clean-full rejects OpenCode dev launcher without official extension disables', () => {
 	const root = makeFixtureRoot({ includeCoreWorkbenchChatEntry: true, includeOfficialExtensionLauncherDisables: false });
 
@@ -165,6 +174,15 @@ test('verify clean-full rejects OpenCode dev launcher without official extension
 
 	assert.notEqual(result.status, 0);
 	assert.match(result.stderr + result.stdout, /code-opencode-dev\.ps1\.disabledOfficialExtensions/);
+});
+
+test('verify clean-full rejects missing OpenCode bridge wiring', () => {
+	const root = makeFixtureRoot({ includeOpenCodeBridge: false });
+
+	const result = runNode(verifyScript, `--root=${root}`, '--profile=clean-full');
+
+	assert.notEqual(result.status, 0);
+	assert.match(result.stderr + result.stdout, /opencodeBridge/);
 });
 
 function runNode(script, ...args) {
@@ -192,7 +210,9 @@ function makeFixtureRoot(options = {}) {
 			'rewrite-sessions-official-entries',
 			'rewrite-product-fallback-defaults',
 			'rewrite-copilot-ui-references',
-			'rewrite-opencode-dev-launcher'
+			'rewrite-onboarding-signin-defaults',
+			'rewrite-opencode-dev-launcher',
+			'verify-opencode-bridge'
 		],
 		overlays: ['clean-full'],
 		patchSets: []
@@ -304,6 +324,8 @@ function makeFixtureRoot(options = {}) {
 	].join('\n') : "import './contrib/chat/browser/chat.contribution.js';\n");
 	writeText(path.join(root, 'src', 'vs', 'sessions', 'electron-browser', 'sessions.main.ts'), options.includeSessionsOfficialEntries ? "import { IDefaultAccountService } from '../../platform/defaultAccount/common/defaultAccount.js';\nimport { DefaultAccountService } from '../../workbench/services/accounts/browser/defaultAccount.js';\nconst defaultAccountService = this._register(new DefaultAccountService(productService));\nserviceCollection.set(IDefaultAccountService, defaultAccountService);\n" : "import { IDefaultAccountService, NullDefaultAccountService } from '../../platform/defaultAccount/common/defaultAccount.js';\nconst defaultAccountService = this._register(new NullDefaultAccountService());\n");
 	writeText(path.join(root, 'src', 'vs', 'platform', 'product', 'common', 'product.ts'), options.includeProductFallbackCopilotDefaults ? "Object.assign(product, {\n\tnameShort: 'Code - OSS Dev',\n\tnameLong: 'Code - OSS Dev',\n\tapplicationName: 'code-oss',\n\tdataFolderName: '.vscode-oss',\n\turlProtocol: 'code-oss',\n\treportIssueUrl: 'https://github.com/microsoft/vscode/issues/new',\n\tlicenseUrl: 'https://github.com/microsoft/vscode/blob/main/LICENSE.txt',\n\tserverLicenseUrl: 'https://github.com/microsoft/vscode/blob/main/LICENSE.txt',\n\tdefaultChatAgent: {\n\t\textensionId: 'GitHub.copilot',\n\t\tchatExtensionId: 'GitHub.copilot-chat',\n\t\tprovider: { default: { id: 'github', name: 'GitHub' }, enterprise: { id: 'github-enterprise', name: 'GitHub Enterprise' } },\n\t\tproviderScopes: []\n\t}\n});\n" : "Object.assign(product, {\n\tnameShort: 'OpenCode IDE Dev',\n\tnameLong: 'OpenCode IDE Dev',\n\tapplicationName: 'opencode-ide',\n\tdataFolderName: '.opencode-ide',\n\turlProtocol: 'opencode-ide',\n\tdefaultChatAgent: {\n\t\textensionId: 'opencode.ide-placeholder',\n\t\tchatExtensionId: 'opencode.ide-placeholder-chat',\n\t\tprovider: { default: { id: 'opencode', name: 'OpenCode' }, enterprise: { id: 'opencode-enterprise', name: 'OpenCode Enterprise' } },\n\t\tproviderScopes: []\n\t}\n});\n");
+	writeText(path.join(root, 'src', 'vs', 'workbench', 'contrib', 'welcomeOnboarding', 'common', 'onboardingTypes.ts'), options.includeOnboardingSignInDefault ? "export const ONBOARDING_STEPS = [\n\tOnboardingStepId.SignIn,\n\tOnboardingStepId.Personalize,\n];\n" : "export const ONBOARDING_STEPS = [\n\tOnboardingStepId.Personalize,\n];\n");
+	writeText(path.join(root, 'src', 'vs', 'workbench', 'contrib', 'welcomeOnboarding', 'browser', 'onboardingVariationA.ts'), options.includeOnboardingSignInDefault ? "private readonly steps = defaultChat ? ONBOARDING_STEPS : ONBOARDING_STEPS.filter(step => step !== OnboardingStepId.SignIn);\n" : "private readonly steps = ONBOARDING_STEPS.filter(step => step !== OnboardingStepId.SignIn);\n");
 	writeText(path.join(root, 'src', 'vs', 'workbench', 'contrib', 'preferences', 'browser', 'settingsLayout.ts'), options.includeCopilotUiReferences ? "const COMMONLY_USED_SETTINGS = [\n\t'editor.fontSize',\n\t'GitHub.copilot-chat.manageExtension',\n];\n" : "const COMMONLY_USED_SETTINGS = [\n\t'editor.fontSize',\n];\n");
 	writeText(path.join(root, 'src', 'vs', 'workbench', 'contrib', 'editTelemetry', 'browser', 'telemetry', 'editSourceTrackingFeature.ts'), options.includeCopilotUiReferences ? "import { derived, observableFromEvent } from '../../../../../base/common/observable.js';\nimport { IExtensionService } from '../../../../services/extensions/common/extensions.js';\nclass Feature {\n\tconstructor(@IExtensionService private readonly _extensionService: IExtensionService) {\n\t\tconst extensions = observableFromEvent(this._extensionService.onDidChangeExtensions, () => {\n\t\t\treturn this._extensionService.extensions;\n\t\t});\n\t\tconst extensionIds = derived(reader => new Set(extensions.read(reader).map(e => e.id?.toLowerCase())));\n\t\tfunction getExtensionInfoObs(extensionId: string, extensionService: IExtensionService) {\n\t\t\tconst extIdLowerCase = extensionId.toLowerCase();\n\t\t\treturn derived(reader => extensionIds.read(reader).has(extIdLowerCase));\n\t\t}\n\n\t\tconst copilotInstalled = getExtensionInfoObs('GitHub.copilot', this._extensionService);\n\t\tconst copilotChatInstalled = getExtensionInfoObs('GitHub.copilot-chat', this._extensionService);\n\n\t\tconst shouldSendDetails = derived(reader => editSourceDetailsEnabled.read(reader) || !!copilotInstalled.read(reader) || !!copilotChatInstalled.read(reader));\n\t}\n}\n" : "import { derived, observableFromEvent } from '../../../../../base/common/observable.js';\nclass Feature {\n\tconstructor() {\n\t\tconst shouldSendDetails = derived(reader => editSourceDetailsEnabled.read(reader));\n\t}\n}\n");
 	const defaultAccountCommandImport = "import { DEFAULT_ACCOUNT_SIGN_IN_COMMAND } from '../../../services/accounts/browser/defaultAccount.js';\n";
@@ -332,7 +354,14 @@ function makeFixtureRoot(options = {}) {
 	writeText(path.join(root, 'src', 'vs', 'workbench', 'contrib', 'issue', 'browser', 'issueReporterModel.ts'), 'const text = "OpenCode IDE issue reporter";\n');
 	writeText(path.join(root, 'src', 'vs', 'workbench', 'contrib', 'issue', 'browser', 'issueReporterPage.ts'), 'const text = "OpenCode IDE issue reporter";\n');
 	writeText(path.join(root, 'src', 'vs', 'workbench', 'contrib', 'opencode', 'browser', 'opencode.contribution.ts'), 'const text = "OpenCode IDE";\n');
-	writeText(path.join(root, 'src', 'vs', 'workbench', 'contrib', 'welcomeOnboarding', 'browser', 'onboardingVariationA.ts'), 'const text = "OpenCode IDE";\n');
+	if (options.includeOpenCodeBridge === false) {
+		writeText(path.join(root, 'src', 'vs', 'workbench', 'contrib', 'opencode', 'browser', 'opencodeWebview.contribution.ts'), 'const disabled = true;\n');
+		writeText(path.join(root, 'src', 'vs', 'workbench', 'contrib', 'opencode', 'browser', 'opencodeProtocol.ts'), 'export const disabled = true;\n');
+	} else {
+		writeText(path.join(root, 'src', 'vs', 'workbench', 'workbench.desktop.main.ts'), `${fs.readFileSync(path.join(root, 'src', 'vs', 'workbench', 'workbench.desktop.main.ts'), 'utf8')}import './contrib/opencode/electron-browser/opencodeHostService.js';\nimport './contrib/opencode/browser/opencode.contribution.js';\nimport './contrib/opencode/browser/opencodeWebview.contribution.js';\n`);
+		writeText(path.join(root, 'src', 'vs', 'workbench', 'contrib', 'opencode', 'browser', 'opencodeWebview.contribution.ts'), "webviews.register(OpenCodeViewId, {});\nif (evt.data?.source === 'opencode-bridge') { vscode.postMessage(evt.data); }\nif (evt.data?.source === 'opencode-host') { postToApp(evt.data); }\nif (evt.data?.source === 'opencode-host-event') { postToApp(evt.data); }\n");
+		writeText(path.join(root, 'src', 'vs', 'workbench', 'contrib', 'opencode', 'browser', 'opencodeProtocol.ts'), "type A = { method: 'context.get' };\ntype B = { method: 'editor.open' };\ntype C = { method: 'terminal.last.get' };\ntype D = { method: 'diagnostics.workspace.get' };\n");
+	}
 
 	return root;
 }
