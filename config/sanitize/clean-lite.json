@@ -1,0 +1,12 @@
+{
+  "name": "clean-lite",
+  "steps": [
+    "rewrite-product",
+    "rewrite-package",
+    "rewrite-build-copilot",
+    "rewrite-build-auth",
+    "rewrite-telemetry-defaults",
+    "rewrite-packaging",
+    "verify"
+  ]
+}
