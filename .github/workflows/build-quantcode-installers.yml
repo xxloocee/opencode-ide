@@ -80,6 +80,7 @@ jobs:
       OPENCODE_REPOSITORY: ${{ github.event_name == 'workflow_dispatch' && inputs.opencode_repository || 'xxloocee/opencode-private' }}
       OPENCODE_REF: ${{ github.event_name == 'workflow_dispatch' && inputs.opencode_ref || 'main' }}
       OPENCODE_IDE_OPENCODE_SOURCE_DIR: ${{ github.workspace }}/opencode-source
+      QUANTCODE_OPENCODE_SOURCE_DIR: ${{ github.workspace }}/opencode-source
       GITHUB_TOKEN: ${{ secrets.CROSS_REPO_GH_TOKEN || secrets.UPSTREAM_SYNC_TOKEN || github.token }}
 
     steps:
