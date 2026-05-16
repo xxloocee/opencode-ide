@@ -20,6 +20,7 @@ import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { IMarkerService, MarkerSeverity } from '../../../../platform/markers/common/markers.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
+import { InputFocusedContext } from '../../../../platform/contextkey/common/contextkeys.js';
 import { KeybindingsRegistry, KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
@@ -1207,10 +1208,15 @@ function base64UrlEncode(value: string): string {
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: OpenCodeSelectionCommandId,
 	weight: KeybindingWeight.WorkbenchContrib + 100,
-	when: ContextKeyExpr.and(EditorContextKeys.editorTextFocus),
+	when: ContextKeyExpr.or(EditorContextKeys.editorTextFocus, InputFocusedContext.toNegated()),
 	primary: KeyMod.CtrlCmd | KeyCode.KeyL,
-	handler: () => {
-		void current?.toggleSelection();
+	handler: accessor => {
+		if (current) {
+			void current.toggleSelection();
+			return;
+		}
+
+		void accessor.get(IViewsService).openView(OpenCodeViewId, true);
 	},
 });
 
