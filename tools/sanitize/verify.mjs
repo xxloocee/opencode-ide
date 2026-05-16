@@ -360,6 +360,8 @@ if (verifiesOpenCodeBridge) {
 		['src/vs/workbench/workbench.desktop.main.ts', /contrib\/opencode\/browser\/opencode\.contribution/],
 		['src/vs/workbench/workbench.desktop.main.ts', /contrib\/opencode\/browser\/opencodeWebview\.contribution/],
 		['src/vs/workbench/contrib/opencode/browser/opencodeWebview.contribution.ts', /webviews\.register\(OpenCodeViewId/],
+		['src/vs/workbench/contrib/opencode/browser/opencodeWebview.contribution.ts', /InputFocusedContext/],
+		['src/vs/workbench/contrib/opencode/browser/opencodeWebview.contribution.ts', /when:\s*ContextKeyExpr\.or\(\s*EditorContextKeys\.editorTextFocus,\s*InputFocusedContext\.toNegated\(\)\s*\)/],
 		['src/vs/workbench/contrib/opencode/browser/opencodeWebview.contribution.ts', /evt\.data\?\.source === 'opencode-bridge'[\s\S]*vscode\.postMessage\(evt\.data\)/],
 		['src/vs/workbench/contrib/opencode/browser/opencodeWebview.contribution.ts', /evt\.data\?\.source === 'opencode-host'[\s\S]*postToApp\(evt\.data\)/],
 		['src/vs/workbench/contrib/opencode/browser/opencodeWebview.contribution.ts', /evt\.data\?\.source === 'opencode-host-event'[\s\S]*postToApp\(evt\.data\)/],
