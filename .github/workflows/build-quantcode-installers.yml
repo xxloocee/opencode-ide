@@ -14,7 +14,7 @@ on:
       target_platform:
         description: Platform to build
         required: false
-        default: windows
+        default: all
         type: choice
         options:
           - darwin
@@ -44,14 +44,14 @@ jobs:
         run: |
           set -euo pipefail
 
-          target_platform="${{ github.event_name == 'workflow_dispatch' && inputs.target_platform || 'windows' }}"
+          target_platform="${{ github.event_name == 'workflow_dispatch' && inputs.target_platform || 'all' }}"
 
           case "$target_platform" in
             darwin)
               matrix='{"include":[{"runner":"macos-15-intel","platform":"darwin","arch":"x64","policy_target":"darwin"},{"runner":"macos-14","platform":"darwin","arch":"arm64","policy_target":"darwin"}]}'
               ;;
             windows)
-              matrix='{"include":[{"runner":"windows-2022","platform":"win32","arch":"x64","policy_target":"win32"}]}'
+              matrix='{"include":[{"runner":"windows-2022","platform":"win32","arch":"x64","policy_target":"win32"},{"runner":"windows-11-arm","platform":"win32","arch":"arm64","policy_target":"win32"}]}'
               ;;
             linux)
               matrix='{"include":[{"runner":"ubuntu-24.04","platform":"linux","arch":"x64","policy_target":"linux"},{"runner":"ubuntu-24.04-arm","platform":"linux","arch":"arm64","policy_target":"linux"}]}'
