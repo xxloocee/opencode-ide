@@ -336,6 +336,15 @@ function rewriteBrandingText() {
 		'src/vs/workbench/contrib/welcomeOnboarding/browser/onboardingVariationA.ts': [
 			['Welcome to Visual Studio Code', 'Welcome to OpenCode IDE'],
 			['Welcome to VS Code', 'Welcome to OpenCode IDE'],
+			['VS Code', 'OpenCode IDE'],
+			['GitHub Copilot', 'OpenCode'],
+			['Copilot CLI', 'OpenCode CLI'],
+			['Tailor Copilot', 'Tailor OpenCode'],
+		],
+		'src/vs/workbench/contrib/welcomeGettingStarted/common/gettingStartedContent.ts': [
+			['Visual Studio Code', 'OpenCode IDE'],
+			['VS Code', 'OpenCode IDE'],
+			['Copilot', 'OpenCode'],
 		],
 	})) {
 		rewriteTextFile(path.join(root, rel), text => {
@@ -351,10 +360,20 @@ function rewriteBrandingText() {
 		.replace(/import \{ assertDefined \} from '..\/..\/..\/..\/base\/common\/types\.js';\r?\n/, '')
 		.replace(/assertDefined\(product\.defaultChatAgent, 'Onboarding requires a default chat agent product configuration\.'\);\r?\nconst defaultChat = product\.defaultChatAgent;/, 'const defaultChat = product.defaultChatAgent;')
 		.replace(/private readonly steps = .*ONBOARDING_STEPS.*;/, 'private readonly steps = ONBOARDING_STEPS.filter(step => step !== OnboardingStepId.SignIn);')
+		.replace('if (!this._footerSignInBtn && !this._userSignedIn) {', 'if (false) {')
+		.replace('this._footerSignInBtn.textContent = localize(\'onboarding.sessions.signInNudge\', "Sign in for AI Powered Features");', 'this._footerSignInBtn.textContent = \'\';')
+		.replace(/\r?\n\t\t\/\/ Tutorial link at bottom of content, above footer\r?\n\t\tconst docsRow = append\(wrapper, \$\('\.onboarding-a-sessions-docs'\)\);\r?\n\t\tthis\._createDocLink\(docsRow, localize\('onboarding\.sessions\.agentsTutorial', "Agents tutorial"\), 'https:\/\/code\.visualstudio\.com\/docs\/copilot\/agents\/agents-tutorial', 'agentsTutorial'\);\r?\n/, '\n')
 	);
 
 	rewriteTextFile(path.join(root, 'src', 'vs', 'workbench', 'contrib', 'welcomeOnboarding', 'common', 'onboardingTypes.ts'), text => text
 		.replace(/\tOnboardingStepId\.SignIn,\r?\n/, '')
+	);
+
+	rewriteTextFile(path.join(root, 'src', 'vs', 'workbench', 'contrib', 'welcomeGettingStarted', 'common', 'gettingStartedContent.ts'), text => text
+		.replace(/[\t ]*create(?:Copilot|OpenCode)SetupStep\('(?:Copilot|OpenCode)Setup(?:Anonymous|SignedOut|Complete|SignedIn)'[^\n]*\r?\n/g, '')
+		.replace(/\r?\n\t\t\t\t\{\r?\n\t\t\t\t\tid: 'videoTutorial',[\s\S]*?\r?\n\t\t\t\t\}\r?\n/, '\n')
+		.replace("'https://aka.ms/vscode-install-git'", "'command:workbench.view.scm'")
+		.replace("'https://code.visualstudio.com/docs/editor/workspace-trust'", "'command:toSide:workbench.trust.manage'")
 	);
 
 	console.log('[sanitize] rewrite-branding-text');

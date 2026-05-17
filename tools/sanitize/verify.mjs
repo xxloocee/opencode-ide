@@ -195,7 +195,8 @@ if (verifiesBrandingText) {
 		['src/vs/workbench/contrib/issue/browser/issueReporterModel.ts', /VS Code version/],
 		['src/vs/workbench/contrib/issue/browser/issueReporterPage.ts', /my VS Code version/],
 		['src/vs/workbench/contrib/opencode/browser/opencode.contribution.ts', /QuantCode/],
-		['src/vs/workbench/contrib/welcomeOnboarding/browser/onboardingVariationA.ts', /assertDefined\(product\.defaultChatAgent|Welcome to Visual Studio Code|Welcome to VS Code/],
+		['src/vs/workbench/contrib/welcomeOnboarding/browser/onboardingVariationA.ts', /assertDefined\(product\.defaultChatAgent|Welcome to Visual Studio Code|Welcome to VS Code|Sign in for AI Powered Features|Agents tutorial|code\.visualstudio\.com\/docs\/copilot|Copilot CLI|Tailor Copilot/],
+		['src/vs/workbench/contrib/welcomeGettingStarted/common/gettingStartedContent.ts', /Visual Studio Code|VS Code|create(?:Copilot|OpenCode)SetupStep\('(?:Copilot|OpenCode)Setup|aka\.ms\/vscode|code\.visualstudio\.com/],
 	];
 
 	for (const [rel, pattern] of brandingChecks) {
