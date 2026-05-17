@@ -6,39 +6,43 @@ For detailed project overview, architecture, coding guidelines, and validation s
 
 ## Repository Branch Workflow
 
-This repository separates upstream sync from stable integration.
+This repository uses a single long-lived branch for normal work.
 
-- `sync-main` is the upstream-sync branch.
-- `sync-main` should stay as close as possible to `upstream/main` and should not carry private feature or integration commits.
-- `main` is the stable integration branch and should not be rewritten by the sync workflow.
-- Do not do day-to-day development directly on `sync-main` or `main`.
-- Do not open implementation PRs from `sync-main`.
+- `main` is the only long-lived working branch.
+- Day-to-day development happens directly on `main`.
+- Do not keep long-lived `dev`, `feature/*`, or `sync-main` branches as part of the default workflow.
+- `origin/main` is the private source of truth for this repository.
+- `upstream/main` is the baseline used when we need to bring in new VS Code changes.
 
 Use this branch model instead:
 
-- Create or refresh `sync-main` from `upstream/main` when needed.
-- Create a `dev` branch from the latest `main` for ongoing local development.
-- Create short-lived feature branches from `dev` when needed.
-- Rebase `dev` or the feature branch onto the latest `sync-main` or `main` before merging changes back.
-- Merge reviewed work into `main` only after the branch has been rebased onto the latest `sync-main`.
+- Start work from the latest `main`.
+- Commit directly on `main`.
+- When upstream changes are needed, fetch `upstream` and rebase `main` onto `upstream/main`.
+- After an upstream rebase, push `main` with `--force-with-lease`.
+- Only create an extra branch when the user explicitly asks for it or a risky experiment truly cannot be done safely on `main`.
 
-When updating local `sync-main`, prefer an explicit fetch and reset so the branch stays a clean upstream mirror.
-
-Preferred update flow for local `sync-main`:
+Preferred start-of-work flow:
 
 ```bash
-git checkout sync-main
+git checkout main
 git fetch origin
-git reset --hard origin/sync-main
+git pull --ff-only origin main
 ```
 
-If local `sync-main` contains unpublished commits, preserve them on another branch before resetting.
+Preferred upstream sync flow:
+
+```bash
+git checkout main
+git fetch upstream
+git rebase upstream/main
+git push --force-with-lease origin main
+```
 
 Agent rules:
 
-- Treat `sync-main` as a read-only sync target unless the user explicitly asks to work on it.
-- Prefer working on `dev` or another non-`main`/non-`sync-main` branch.
-- Before editing code, confirm the current branch is appropriate for the task.
-- If the branch is `main` or `sync-main` and the task is normal feature work, stop and warn the user before proceeding.
-- Do not resolve divergent `sync-main` history with a merge commit.
-- If `sync-main` diverges from `origin/sync-main`, prefer `fetch` plus explicit reset or user confirmation, not `pull`.
+- Treat `main` as the normal working branch.
+- Before editing code, confirm local `main` is in a sane state.
+- If the task involves upstream sync, do it on `main` instead of recreating a separate mirror branch.
+- Do not recreate `dev` or `sync-main` unless the user explicitly asks for a different workflow.
+- When rewriting `main` after an upstream rebase, prefer `--force-with-lease` over `--force`.
