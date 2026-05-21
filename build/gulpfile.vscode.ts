@@ -42,6 +42,14 @@ const rcedit = promisify(rceditCallback);
 const root = path.dirname(import.meta.dirname);
 const commit = getVersion(root);
 
+function readProductOverrides(): Record<string, unknown> {
+	const productOverridesPath = path.join(root, 'product.overrides.json');
+	if (!fs.existsSync(productOverridesPath)) {
+		return {};
+	}
+	return JSON.parse(fs.readFileSync(productOverridesPath, 'utf8'));
+}
+
 // Build
 const vscodeEntryPoints = [
 	buildfile.workerEditor,
@@ -450,7 +458,7 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 				json.date = readISODate(out);
 				json.checksums = checksums;
 				json.version = version;
-				return json;
+				return { ...json, ...readProductOverrides() };
 			}))
 			.pipe(es.through(function (file) {
 				productJsonContents = file.contents.toString();
