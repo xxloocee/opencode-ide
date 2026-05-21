@@ -1,0 +1,96 @@
+{
+	"$schema": "http://json-schema.org/draft-07/schema#",
+	"$id": "vscode://schemas/quant-workbench/quant-config",
+	"title": "Quant Workbench Config",
+	"type": "object",
+	"additionalProperties": false,
+	"properties": {
+		"name": {
+			"type": "string",
+			"description": "Workspace display name shown in Quant Workbench."
+		},
+		"dataDir": {
+			"type": "string",
+			"description": "Relative data directory used for CSV discovery."
+		},
+		"strategies": {
+			"type": "array",
+			"description": "Managed strategies shown in the strategy board and detail pages.",
+			"items": {
+				"type": "object",
+				"additionalProperties": false,
+				"required": [
+					"id",
+					"name"
+				],
+				"properties": {
+					"id": {
+						"type": "string",
+						"description": "Stable strategy identifier."
+					},
+					"name": {
+						"type": "string",
+						"description": "Display name shown in the strategy board."
+					},
+					"entry": {
+						"type": "string",
+						"description": "Relative path to the strategy entry file."
+					},
+					"command": {
+						"type": "string",
+						"description": "Command used to run the strategy."
+					},
+					"status": {
+						"type": "string",
+						"description": "Lifecycle state used by the strategy board filter.",
+						"enum": [
+							"draft",
+							"backtested",
+							"running",
+							"paper",
+							"archived"
+						]
+					},
+					"asset": {
+						"type": "string",
+						"description": "Primary asset type used by the strategy board filter.",
+						"enum": [
+							"spot",
+							"futures",
+							"options"
+						]
+					},
+					"returnPct": {
+						"type": "number",
+						"description": "Recent return percentage shown on the strategy board."
+					},
+					"sharpeRatio": {
+						"type": "number",
+						"description": "Recent Sharpe ratio shown on the strategy board."
+					},
+					"tags": {
+						"type": "array",
+						"description": "Optional labels shown on strategy cards.",
+						"items": {
+							"type": "string"
+						}
+					}
+				}
+			}
+		},
+		"outputs": {
+			"type": "object",
+			"additionalProperties": false,
+			"properties": {
+				"equity": {
+					"type": "string",
+					"description": "Relative path to the equity result JSON."
+				},
+				"drawdown": {
+					"type": "string",
+					"description": "Relative path to the drawdown result JSON."
+				}
+			}
+		}
+	}
+}
