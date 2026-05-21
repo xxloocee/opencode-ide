@@ -39,6 +39,14 @@ const commit = getVersion(REPO_ROOT);
 const BUILD_ROOT = path.dirname(REPO_ROOT);
 const REMOTE_FOLDER = path.join(REPO_ROOT, 'remote');
 
+function readProductOverrides(): Record<string, unknown> {
+	const productOverridesPath = path.join(REPO_ROOT, 'product.overrides.json');
+	if (!fs.existsSync(productOverridesPath)) {
+		return {};
+	}
+	return JSON.parse(fs.readFileSync(productOverridesPath, 'utf8'));
+}
+
 // Targets
 
 const BUILD_TARGETS = [
@@ -362,7 +370,7 @@ function packageTask(type: string, platform: string, arch: string, sourceFolderN
 
 		let productJsonContents = '';
 		const productJsonStream = gulp.src(['product.json'], { base: '.' })
-			.pipe(jsonEditor({ commit, date: readISODate(sourceFolderName), version }))
+			.pipe(jsonEditor({ ...readProductOverrides(), commit, date: readISODate(sourceFolderName), version }))
 			.pipe(es.through(function (file) {
 				productJsonContents = file.contents.toString();
 				this.emit('data', file);
