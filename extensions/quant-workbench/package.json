@@ -1,0 +1,151 @@
+{
+	"name": "quant-workbench",
+	"displayName": "%displayName%",
+	"description": "%description%",
+	"version": "0.0.1",
+	"publisher": "vscode",
+	"license": "MIT",
+	"engines": {
+		"vscode": "^1.90.0"
+	},
+	"categories": [
+		"Other"
+	],
+	"main": "./out/extension",
+	"activationEvents": [
+		"workspaceContains:data/*.csv",
+		"workspaceContains:*_backtest.py",
+		"onView:quant-workbench.overview",
+		"onView:quant-workbench.strategies",
+		"onView:quant-workbench.data",
+		"onView:quant-workbench.recentRuns",
+		"onCommand:quant-workbench.openOverview",
+		"onCommand:quant-workbench.openStrategies",
+		"onCommand:quant-workbench.openDataCenter",
+		"onCommand:quant-workbench.openStrategyDetail",
+		"onCommand:quant-workbench.openConfig",
+		"onCommand:quant-workbench.refresh",
+		"onCommand:quant-workbench.runBacktest"
+	],
+	"capabilities": {
+		"virtualWorkspaces": true,
+		"untrustedWorkspaces": {
+			"supported": true
+		}
+	},
+	"contributes": {
+		"viewsContainers": {
+			"activitybar": [
+				{
+					"id": "quant-workbench",
+					"title": "%container.title%",
+					"icon": "$(dashboard)"
+				}
+			]
+		},
+		"views": {
+			"quant-workbench": [
+				{
+					"id": "quant-workbench.overview",
+					"name": "%view.overview%"
+				},
+				{
+					"id": "quant-workbench.strategies",
+					"name": "%view.strategies%"
+				},
+				{
+					"id": "quant-workbench.data",
+					"name": "%view.data%"
+				},
+				{
+					"id": "quant-workbench.recentRuns",
+					"name": "%view.recentRuns%"
+				}
+			]
+		},
+		"commands": [
+			{
+				"command": "quant-workbench.openOverview",
+				"title": "%command.openOverview%",
+				"icon": "$(dashboard)"
+			},
+			{
+				"command": "quant-workbench.openStrategies",
+				"title": "%command.openStrategies%",
+				"icon": "$(symbol-function)"
+			},
+			{
+				"command": "quant-workbench.openDataCenter",
+				"title": "%command.openDataCenter%",
+				"icon": "$(database)"
+			},
+			{
+				"command": "quant-workbench.openStrategyDetail",
+				"title": "%command.openStrategyDetail%"
+			},
+			{
+				"command": "quant-workbench.openConfig",
+				"title": "%command.openConfig%",
+				"icon": "$(settings-gear)"
+			},
+			{
+				"command": "quant-workbench.refresh",
+				"title": "%command.refresh%",
+				"icon": "$(refresh)"
+			},
+			{
+				"command": "quant-workbench.runBacktest",
+				"title": "%command.runBacktest%",
+				"icon": "$(play)"
+			}
+		],
+		"jsonValidation": [
+			{
+				"fileMatch": "quant.config.json",
+				"url": "./schemas/quant-config.schema.json"
+			}
+		],
+		"menus": {
+			"view/title": [
+				{
+					"command": "quant-workbench.openOverview",
+					"when": "view == quant-workbench.overview",
+					"group": "navigation@1"
+				},
+				{
+					"command": "quant-workbench.openStrategies",
+					"when": "view == quant-workbench.strategies",
+					"group": "navigation@1"
+				},
+				{
+					"command": "quant-workbench.openDataCenter",
+					"when": "view == quant-workbench.data",
+					"group": "navigation@1"
+				},
+				{
+					"command": "quant-workbench.refresh",
+					"when": "view == quant-workbench.overview || view == quant-workbench.strategies || view == quant-workbench.data || view == quant-workbench.recentRuns",
+					"group": "navigation@2"
+				}
+			],
+			"view/item/context": [
+				{
+					"command": "quant-workbench.runBacktest",
+					"when": "view == quant-workbench.strategies && viewItem == strategy",
+					"group": "inline@1"
+				},
+				{
+					"command": "quant-workbench.openStrategyDetail",
+					"when": "view == quant-workbench.strategies && viewItem == strategy",
+					"group": "navigation@1"
+				}
+			]
+		}
+	},
+	"scripts": {
+		"compile": "npx gulp compile-extension:quant-workbench",
+		"watch": "npx gulp watch-extension:quant-workbench"
+	},
+	"dependencies": {},
+	"devDependencies": {}
+}

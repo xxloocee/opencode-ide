@@ -1,0 +1,16 @@
+{
+	"displayName": "Quant Workbench",
+	"description": "Lightweight quant project management and backtest views.",
+	"container.title": "量化工作台",
+	"view.overview": "概览",
+	"view.strategies": "策略",
+	"view.data": "数据",
+	"view.recentRuns": "最近运行",
+	"command.openOverview": "打开量化概览",
+	"command.openStrategies": "打开策略中心",
+	"command.openDataCenter": "打开数据中心",
+	"command.openStrategyDetail": "打开策略详情",
+	"command.openConfig": "打开量化配置",
+	"command.refresh": "刷新量化视图",
+	"command.runBacktest": "运行回测"
+}
