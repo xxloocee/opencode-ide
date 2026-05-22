@@ -146,10 +146,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 	}));
 }
 
-async function openPage(context: vscode.ExtensionContext, route: QuantPageRoute): Promise<void> {
+async function openPage(context: vscode.ExtensionContext, route: QuantPageRoute, preserveFocus = false): Promise<void> {
 	const snapshot = await scanQuantWorkspace();
 	const downloadOptions = await buildDownloadOptions(snapshot.items);
-	QuantWorkbenchPanel.show(context, route, snapshot, runHistory, downloadTasks, downloadOptions);
+	QuantWorkbenchPanel.show(context, route, snapshot, runHistory, downloadTasks, downloadOptions, preserveFocus);
 }
 
 async function openStrategyDetail(context: vscode.ExtensionContext, strategyOrId?: QuantItem | string): Promise<void> {
@@ -486,6 +486,8 @@ async function downloadData(request?: DownloadRequest): Promise<void> {
 		...process.env,
 		NO_COLOR: '1',
 		PYTHONUNBUFFERED: '1',
+		PYTHONUTF8: '1',
+		PYTHONIOENCODING: 'utf-8',
 		PYTHONPATH: [join(workspaceFolder.uri.fsPath, '.opencode', 'pythonlib'), process.env.PYTHONPATH].filter(Boolean).join(delimiter)
 	};
 
@@ -498,13 +500,16 @@ async function downloadData(request?: DownloadRequest): Promise<void> {
 			maxBuffer: 50 * 1024 * 1024
 		});
 
-		const handleOutput = (chunk: unknown): void => {
-			const text = String(chunk);
+		child.stdout?.setEncoding('utf8');
+		child.stderr?.setEncoding('utf8');
+
+		const handleOutput = (chunk: string | Buffer): void => {
+			const text = typeof chunk === 'string' ? chunk : chunk.toString('utf8');
 			outputChannel.append(text);
 			updateDownloadProgress(task, text);
 			void refreshViews();
 			if (extensionContextRef) {
-				void openPage(extensionContextRef, { page: 'data' });
+				void openPage(extensionContextRef, { page: 'data' }, true);
 			}
 		};
 		child.stdout?.on('data', handleOutput);
@@ -538,7 +543,7 @@ async function downloadData(request?: DownloadRequest): Promise<void> {
 			}
 			await refreshViews();
 			if (extensionContextRef) {
-				await openPage(extensionContextRef, { page: 'data' });
+				await openPage(extensionContextRef, { page: 'data' }, true);
 			}
 			resolve();
 		});

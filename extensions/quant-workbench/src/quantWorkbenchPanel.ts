@@ -15,19 +15,21 @@ export class QuantWorkbenchPanel {
 	private static readonly viewType = 'quant-workbench.page';
 	private static readonly panels = new Map<string, QuantWorkbenchPanel>();
 
-	static show(context: vscode.ExtensionContext, route: QuantPageRoute, snapshot: QuantSnapshot, runHistory: readonly RunRecord[], downloadTasks: readonly DownloadTaskRecord[], downloadOptions: DownloadFormOptions): void {
+	static show(context: vscode.ExtensionContext, route: QuantPageRoute, snapshot: QuantSnapshot, runHistory: readonly RunRecord[], downloadTasks: readonly DownloadTaskRecord[], downloadOptions: DownloadFormOptions, preserveFocus = false): void {
 		const key = routeKey(route);
 		const existing = QuantWorkbenchPanel.panels.get(key);
 		if (existing) {
 			existing.update(route, snapshot, runHistory, downloadTasks, downloadOptions);
-			existing.panel.reveal(vscode.ViewColumn.Active, false);
+			if (!preserveFocus) {
+				existing.panel.reveal(vscode.ViewColumn.Active, false);
+			}
 			return;
 		}
 
 		const panel = vscode.window.createWebviewPanel(
 			QuantWorkbenchPanel.viewType,
 			titleForRoute(route, snapshot),
-			{ viewColumn: vscode.ViewColumn.Active, preserveFocus: false },
+			{ viewColumn: vscode.ViewColumn.Active, preserveFocus },
 			{ enableScripts: true, retainContextWhenHidden: true }
 		);
 		const page = new QuantWorkbenchPanel(panel, route, snapshot, runHistory, downloadTasks, downloadOptions);
