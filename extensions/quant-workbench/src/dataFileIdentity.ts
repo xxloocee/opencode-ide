@@ -23,20 +23,25 @@ export function parseDataFileIdentity(filename: string, relativePath: string, te
 }
 
 function parseGuiguDataFilename(filename: string): DataFileIdentity | undefined {
-	const m = /^([a-z]+)-([A-Za-z]+)-?([A-Za-z]+)-([a-z0-9_]+)-([a-z0-9]+)-(\d{4}-\d{2}-\d{2})-(\d{4}-\d{2}-\d{2})(?:\.partial)?\.\w+$/.exec(filename);
-	if (!m) {
+	const match = /^([a-z]+)-(.+)-([a-z0-9_]+)-([a-z0-9]+)-(\d{4}-\d{2}-\d{2})-(\d{4}-\d{2}-\d{2})(?:\.partial)?\.(?:csv|parquet|json)$/i.exec(filename);
+	if (!match) {
 		return undefined;
 	}
 
-	const exchange = m[1];
-	const p1 = m[2].toUpperCase();
-	const p2 = m[3].toUpperCase();
-	const symbol = p1 === 'USDT' || p1 === 'USD' || p1 === 'BUSD' ? `${p2}/${p1}` : `${p1}/${p2}`;
-	const dtype = normalizeDtype(m[4]);
-	const timeframe = normalizeInterval(m[5]);
+	const exchange = match[1].toLowerCase();
+	const symbolParts = match[2].split('-').map(part => part.toUpperCase()).filter(Boolean);
+	const dtype = normalizeDtype(match[3]);
+	const timeframe = normalizeInterval(match[4]);
+	if (symbolParts.length < 2 || !isDtypeToken(dtype)) {
+		return undefined;
+	}
+
+	const baseAsset = symbolParts[0];
+	const quoteAsset = symbolParts.find((part, index) => index > 0 && isQuoteAsset(part)) ?? symbolParts[1];
+	const symbol = `${baseAsset}/${quoteAsset}`;
 	const market = inferMarketFromContent(filename, undefined);
 
-	return { symbol, market, dtype, timeframe, dateStart: m[6], dateEnd: m[7], exchange };
+	return { symbol, market, dtype, timeframe, dateStart: match[5], dateEnd: match[6], exchange };
 }
 
 function parseStructuredFilename(filename: string): DataFileIdentity | undefined {

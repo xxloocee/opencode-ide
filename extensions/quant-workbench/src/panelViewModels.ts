@@ -45,7 +45,7 @@ export function toStrategyViewModel(item: QuantItem): StrategyViewModel {
 		preview: item.preview ?? ''
 	};
 }
-export function toDataViewModel(item: QuantItem): DataViewModel { const parsed = parseDataIdentity(item.label); const source = item.metadata?.source ?? 'real'; const storage = item.metadata?.storage ?? 'primary'; const dtype = item.metadata?.dtype ?? 'ohlcv'; return { id: item.id, name: item.label, symbol: item.metadata?.symbol ?? parsed.symbol, market: (item.metadata?.market as DataViewModel['market']) ?? parsed.market, marketLabel: localizeAsset(item.metadata?.market ?? parsed.market), timeframe: item.metadata?.timeframe ?? parsed.timeframe, dtypeLabel: vscode.l10n.t(dtype.toUpperCase()), sourceLabel: source === 'real' ? vscode.l10n.t('\u771f\u5b9e') : vscode.l10n.t('\u6a21\u62df'), storageLabel: storage === 'partial' ? vscode.l10n.t('\u5206\u7247') : storage === 'cache' ? vscode.l10n.t('\u7f13\u5b58') : vscode.l10n.t('\u4e3b\u6570\u636e'), coverageLabel: inferCoverageLabel(item.preview, item.metadata?.timeframe ?? parsed.timeframe), rowsLabel: inferRowCountLabel(item.preview), columnsLabel: findFact(item, 'Columns') ?? vscode.l10n.t('\u5f85\u89e3\u6790'), sizeLabel: findFact(item, 'Size') ?? vscode.l10n.t('\u672a\u77e5'), updatedAtLabel: item.detail ?? vscode.l10n.t('\u8def\u5f84\u672a\u8bb0\u5f55'), statusLabel: item.preview ? vscode.l10n.t('\u53ef\u9884\u89c8') : vscode.l10n.t('\u5927\u6587\u4ef6'), summary: item.summary ?? item.description ?? vscode.l10n.t('\u6570\u636e\u6587\u4ef6'), preview: item.preview ?? '', path: item.detail ?? '' }; }
+export function toDataViewModel(item: QuantItem): DataViewModel { const parsed = parseDataIdentity(item.label); const source = item.metadata?.source ?? 'real'; const storage = item.metadata?.storage ?? 'primary'; const dtype = item.metadata?.dtype ?? 'ohlcv'; return { id: item.id, name: item.label, symbol: item.metadata?.symbol ?? parsed.symbol, market: (item.metadata?.market as DataViewModel['market']) ?? parsed.market, marketLabel: localizeAsset(item.metadata?.market ?? parsed.market), timeframe: item.metadata?.timeframe ?? parsed.timeframe, dtypeLabel: vscode.l10n.t(dtype.toUpperCase()), sourceLabel: source === 'real' ? vscode.l10n.t('\u771f\u5b9e') : vscode.l10n.t('\u6a21\u62df'), storageLabel: storage === 'partial' ? vscode.l10n.t('\u5206\u7247') : storage === 'cache' || storage === 'raw' ? vscode.l10n.t('\u7f13\u5b58') : vscode.l10n.t('\u4e3b\u6570\u636e'), coverageLabel: inferCoverageLabel(item.preview, item.metadata?.timeframe ?? parsed.timeframe), rowsLabel: inferRowCountLabel(item.preview), columnsLabel: findFact(item, 'Columns') ?? vscode.l10n.t('\u5f85\u89e3\u6790'), sizeLabel: findFact(item, 'Size') ?? vscode.l10n.t('\u672a\u77e5'), updatedAtLabel: item.detail ?? vscode.l10n.t('\u8def\u5f84\u672a\u8bb0\u5f55'), statusLabel: item.preview ? vscode.l10n.t('\u53ef\u9884\u89c8') : vscode.l10n.t('\u5927\u6587\u4ef6'), summary: item.summary ?? item.description ?? vscode.l10n.t('\u6570\u636e\u6587\u4ef6'), preview: item.preview ?? '', path: item.detail ?? '' }; }
 export function toBacktestViewModel(item: QuantItem): BacktestViewModel { return { id: item.id, name: item.label, summary: item.summary ?? item.description ?? vscode.l10n.t('\u56de\u6d4b\u7ed3\u679c\u8f93\u51fa\u6587\u4ef6\u3002'), facts: item.facts ?? [], preview: item.preview ?? '' }; }
 export function computeOverviewMetrics(strategies: readonly StrategyViewModel[], dataItems: readonly DataViewModel[], backtests: readonly BacktestViewModel[]): {
 	strategies: number;
@@ -65,7 +65,7 @@ export function buildDataGroups(dataItems: readonly DataViewModel[], strategies:
 		const group = groups.get(key) ?? [];
 		group.push(item);
 		groups.set(key, group);
-	} return Array.from(groups.entries()).map(([key, items]) => { const [symbol, market] = key.split('|'); const sortedItems = [...items].sort((left, right) => right.updatedAtLabel.localeCompare(left.updatedAtLabel)); return { id: key, title: symbol, subtitle: market === 'futures' ? vscode.l10n.t('\u5408\u7ea6') : market === 'options' ? vscode.l10n.t('\u671f\u6743') : vscode.l10n.t('\u73b0\u8d27'), fileCountLabel: vscode.l10n.t('{0} \u4e2a\u6587\u4ef6', String(items.length)), market: market as DataViewModel['market'], linkedStrategyCount: strategies.filter(strategy => matchesStrategyToData(strategy, sortedItems[0])).length, items: sortedItems }; }).sort((left, right) => right.items.length - left.items.length);
+	} return Array.from(groups.entries()).map(([key, items]) => { const [symbol, market] = key.split('|'); const sortedItems = [...items].sort((left, right) => right.updatedAtLabel.localeCompare(left.updatedAtLabel)); return { id: key, title: symbol, subtitle: market === 'futures' ? vscode.l10n.t('\u5408\u7ea6') : market === 'options' ? vscode.l10n.t('\u671f\u6743') : vscode.l10n.t('\u73b0\u8d27'), fileCountLabel: vscode.l10n.t('{0} \u4e2a\u6587\u4ef6', String(items.length)), market: market as DataViewModel['market'], linkedStrategyCount: strategies.filter(strategy => sortedItems.some(item => hasExplicitDataInput(strategy, item))).length, items: sortedItems }; }).sort((left, right) => right.items.length - left.items.length);
 }
 export function toDownloadTaskViewModel(task: DownloadTaskRecord): DownloadTaskViewModel {
 	return {
@@ -80,7 +80,17 @@ export function toDownloadTaskViewModel(task: DownloadTaskRecord): DownloadTaskV
 	};
 }
 export function rankLinkedData(strategy: StrategyViewModel, dataItems: readonly DataViewModel[]): readonly DataViewModel[] { return [...dataItems].map(item => ({ item, score: scoreStrategyDataBinding(strategy, item) })).filter(entry => entry.score > 0).sort((left, right) => right.score - left.score).map(entry => entry.item); }
-function matchesStrategyToData(strategy: StrategyViewModel, data: DataViewModel): boolean { return scoreStrategyDataBinding(strategy, data) >= 3; }
+function hasExplicitDataInput(strategy: StrategyViewModel, data: DataViewModel): boolean {
+	const dataPath = normalizeDataPath(data.path);
+	const dataName = dataPath.split('/').pop() ?? data.name.toLowerCase();
+	return strategy.dataInputs.some(input => {
+		const normalizedInput = normalizeDataPath(input);
+		if (!normalizedInput) {
+			return false;
+		}
+		return dataPath.endsWith(normalizedInput) || dataName === normalizedInput.split('/').pop();
+	});
+}
 function scoreStrategyDataBinding(strategy: StrategyViewModel, data: DataViewModel): number {
 	let score = 0; const dataPath = data.path.replace(/\\/g, '/').toLowerCase(); const dataName = data.name.toLowerCase(); for (const input of strategy.dataInputs) { const normalizedInput = input.replace(/\\/g, '/').toLowerCase(); if (!normalizedInput) { continue; } if (dataPath.endsWith(normalizedInput) || dataName === normalizedInput.split('/').pop()) { score += 8; } } if (normalizeSymbolLabel(strategy.symbolLabel) === normalizeSymbolLabel(data.symbol)) {
 		score += 3;
@@ -95,6 +105,7 @@ function scoreStrategyDataBinding(strategy: StrategyViewModel, data: DataViewMod
 		}
 	} return score;
 }
+function normalizeDataPath(value: string): string { return value.replace(/\\/g, '/').toLowerCase().trim(); }
 function normalizeSymbolLabel(symbol: string): string { return symbol.replace(/:.*$/, '').replace(/[^A-Z0-9]/gi, '').toUpperCase(); }
 function inferStrategyTimeframeHint(strategy: StrategyViewModel): string | undefined {
 	const corpus = `${strategy.name} ${strategy.summary} ${strategy.tags.join(' ')} ${strategy.preview} ${strategy.dataInputs.join(' ')}`.toLowerCase(); const candidates = ['1m', '5m', '15m', '30m', '1h', '4h', '1d', '1w']; for (const candidate of candidates) {

@@ -173,7 +173,8 @@ function renderStrategies(strategies: readonly StrategyViewModel[]): string {
 		`;
 }
 function renderData(dataItems: readonly DataViewModel[], strategies: readonly StrategyViewModel[], downloadTasks: readonly DownloadTaskViewModel[], downloadOptions: DownloadFormOptions): string {
-	const summary = summarizeDataBoard(dataItems, downloadTasks);
+	const activeDownloadTasks = downloadTasks.filter(task => task.status === 'running' || task.status === 'failed');
+	const summary = summarizeDataBoard(dataItems, activeDownloadTasks);
 	const groups = buildDataGroups(dataItems, strategies);
 	return `
 		<section class="page-header page-header--compact">
@@ -217,7 +218,7 @@ function renderData(dataItems: readonly DataViewModel[], strategies: readonly St
 			</div>
 		</section>
 		<section class="data-list" id="data-group-list">
-			${downloadTasks.length > 0 ? renderCompactDownloadTaskSection(downloadTasks) : ''}
+			${activeDownloadTasks.length > 0 ? renderCompactDownloadTaskSection(activeDownloadTasks) : ''}
 			${groups.length > 0 ? groups.map(renderDataGroupCard).join('') : emptyInline(vscode.l10n.t('\u6682\u65e0\u6570\u636e\u6587\u4ef6\u3002'))}
 		</section>
 		${renderCompactDownloadModal(downloadOptions)}

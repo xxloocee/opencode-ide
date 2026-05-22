@@ -23,7 +23,7 @@ export async function scanDataFiles(folder: vscode.Uri): Promise<QuantItem[]> {
 		const preview = text ? buildCsvPreview(text) : undefined;
 		const facts = buildCsvFacts(uri, stats.size, preview);
 		const metadata = buildDataMetadata(folder, uri, text);
-		if (metadata.storage !== 'primary') {
+		if (!isVisibleDataStorage(metadata.storage)) {
 			continue;
 		}
 		items.push({
@@ -67,7 +67,7 @@ function buildDataMetadata(folder: vscode.Uri, uri: vscode.Uri, text: string | u
 	const filename = basename(uri);
 	const identity = parseDataFileIdentity(filename, relative, text);
 	const isPartial = lower.includes('.partial.');
-	const storage = isPartial ? 'partial' : lower.includes('/raw/') ? 'cache' : 'primary';
+	const storage = isPartial ? 'partial' : lower.includes('/raw/') ? 'raw' : 'primary';
 	const source = isRealDataSource(relative, text) ? 'real' : 'simulated';
 
 	return {
@@ -85,4 +85,8 @@ function buildDataMetadata(folder: vscode.Uri, uri: vscode.Uri, text: string | u
 		dateEnd: identity.dateEnd,
 		exchange: identity.exchange
 	};
+}
+
+function isVisibleDataStorage(storage: string | undefined): boolean {
+	return storage === 'primary' || storage === 'raw';
 }
