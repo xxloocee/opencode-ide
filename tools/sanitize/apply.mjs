@@ -174,7 +174,9 @@ function rewritePackageJson() {
 function rewriteBuildForCopilotRemoval() {
 	rewriteTextFile(path.join(root, 'build', 'gulpfile.vscode.ts'), text => text
 		.replace(', compileCopilotExtensionBuildTask', '')
-		.replace("import { getCopilotExcludeFilter, prepareBuiltInCopilotRipgrepShim } from './lib/copilot.ts';\n", '')
+		.replace("import { getCopilotExcludeFilter, getCopilotRuntimePrebuildFiles, getRipgrepExcludeFilter, prepareBuiltInCopilotRipgrepShim } from './lib/copilot.ts';\n", "import { getRipgrepExcludeFilter } from './lib/copilot.ts';\n")
+		.replace(/\t\tconst copilotRuntimePrebuilds = gulp\.src\(getCopilotRuntimePrebuildFiles\(platform, arch\), \{ base: '\.', dot: true, allowEmpty: true \}\);\r?\n/, '')
+		.replace(/\t\tconst deps = es\.merge\(cleanedDeps, copilotRuntimePrebuilds\)\r?\n/, '\t\tconst deps = cleanedDeps\n')
 		.replace("\t\t\t.pipe(filter(getCopilotExcludeFilter(platform, arch)))\n", '')
 		.replace("\t\t\t\t'**/@github/copilot-*/**',\n", '')
 		.replace(/\t\tconst builtInCopilotExtensionDir = path\.join\(appBase, 'extensions', 'copilot'\);\r?\n/, '')
@@ -185,7 +187,9 @@ function rewriteBuildForCopilotRemoval() {
 
 	rewriteTextFile(path.join(root, 'build', 'gulpfile.reh.ts'), text => text
 		.replace(', compileCopilotExtensionBuildTask', '')
-		.replace("import { getCopilotExcludeFilter, prepareBuiltInCopilotRipgrepShim } from './lib/copilot.ts';\n", '')
+		.replace("import { getCopilotExcludeFilter, getCopilotRuntimePrebuildFiles, getRipgrepExcludeFilter, prepareBuiltInCopilotRipgrepShim } from './lib/copilot.ts';\n", "import { getRipgrepExcludeFilter } from './lib/copilot.ts';\n")
+		.replace(/\t\tconst copilotRuntimePrebuilds = gulp\.src\(getCopilotRuntimePrebuildFiles\(platform, arch, 'remote\/node_modules'\), \{ base: 'remote', dot: true, allowEmpty: true \}\);\r?\n/, '')
+		.replace(/\t\tconst deps = es\.merge\(cleanedDeps, copilotRuntimePrebuilds\)\r?\n/, '\t\tconst deps = cleanedDeps\n')
 		.replace("\t\t\t.pipe(filter(getCopilotExcludeFilter(platform, arch)))\n", '')
 		.replace(/\t\tconst builtInCopilotExtensionDir = path\.join\(outputDir, 'extensions', 'copilot'\);\r?\n/, '')
 		.replace(/\r?\n\t\tprepareBuiltInCopilotRipgrepShim\(platform, arch, builtInCopilotExtensionDir, nodeModulesDir\);\r?\n/, '\n\t\tvoid platform;\n\t\tvoid arch;\n\t\tvoid destinationFolderName;\n\t\tvoid outputDir;\n\t\tvoid nodeModulesDir;\n')
@@ -194,7 +198,7 @@ function rewriteBuildForCopilotRemoval() {
 	);
 
 	rewriteTextFile(path.join(root, 'build', 'gulpfile.extensions.ts'), text => text
-		.replace(/\/\*\*\r?\n \* Compiles the built-in copilot extension for the build\.\r?\n \* Used by non-CI local builds where copilot is not downloaded as a VSIX\.\r?\n \*\/\r?\nexport const compileCopilotExtensionBuildTask = task\.define\('compile-copilot-extension-build', \(\) => ext\.packageCopilotExtensionStream\(false\)\.pipe\(gulp\.dest\('\.build'\)\)\);\r?\ngulp\.task\(compileCopilotExtensionBuildTask\);\r?\n\r?\n/, '')
+		.replace(/\/\*\*\r?\n \* Compiles the built-in copilot extension for the build\.\r?\n \* Used by non-CI local builds where copilot is not downloaded as a VSIX\.\r?\n \*\/\r?\nexport const compileCopilotExtensionBuildTask = task\.define\('compile-copilot-extension-build', \(\) => ext\.packageCopilotExtensionStream\(false\)\.pipe\(gulp\.dest\('\.build'\)\)\);\r?\n(?:gulp|task)\.task\(compileCopilotExtensionBuildTask\);\r?\n\r?\n/, '')
 	);
 
 	rewriteTextFile(path.join(root, 'build', 'npm', 'dirs.ts'), text => text

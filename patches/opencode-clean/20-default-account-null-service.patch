@@ -9,8 +9,8 @@ index f2d19fa45db..4bc436de6f5 100644
 +import { Disposable } from '../../../base/common/lifecycle.js';
  import { createDecorator } from '../../instantiation/common/instantiation.js';
  
- export interface IDefaultAccountProvider {
-@@ -20,6 +21,41 @@ export interface IDefaultAccountProvider {
+ /**
+@@ -36,6 +37,45 @@ export interface IDefaultAccountProvider {
  	signOut(): Promise<void>;
  }
  
@@ -46,6 +46,10 @@ index f2d19fa45db..4bc436de6f5 100644
 +
 +	signOut(): Promise<void> {
 +		return Promise.resolve();
++	}
++
++	resolveGitHubUrl(path: string): string {
++		return `https://github.com/${path}`;
 +	}
 +}
 +
