@@ -25,11 +25,11 @@
 - OpenCode
   内嵌 AI 助手和 sidecar runtime。
 
-但代码里仍然有一些历史技术标识，比如：
+代码里仍然有一些真实技术标识，比如：
 
-- `QuantCode`
+- `ErgouziCode`
 - `SessionsOpenCode*`
-- `QuantCode.exe`
+- `ErgouziCode.exe`
 
 这些如果是真实代码、配置键或产物名，文档里继续保留，不强行改写。
 

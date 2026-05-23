@@ -62,7 +62,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			type: 'string',
 			default: '',
 			scope: ConfigurationScope.APPLICATION,
-			description: localize('openCode.cwd', "Optional working directory used to launch the OpenCode server command. When empty, QuantCode falls back to the current window workspace root.")
+			description: localize('openCode.cwd', "Optional working directory used to launch the OpenCode server command. When empty, ErgouziCode falls back to the current window workspace root.")
 		},
 		[SessionsOpenCodeUiPackageSettingId]: {
 			type: 'string',
@@ -74,7 +74,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			type: 'boolean',
 			default: true,
 			scope: ConfigurationScope.APPLICATION,
-			description: localize('openCode.enableGenerativeUiCsp', "When enabled, QuantCode injects OPENCODE_ENABLE_GENERATIVE_UI_CSP=1 for app-ide launches so generative widgets can use the IDE-specific CSP policy.")
+			description: localize('openCode.enableGenerativeUiCsp', "When enabled, ErgouziCode injects OPENCODE_ENABLE_GENERATIVE_UI_CSP=1 for app-ide launches so generative widgets can use the IDE-specific CSP policy.")
 		},
 	}
 });
