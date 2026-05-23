@@ -182,8 +182,10 @@ class OpenCodeWebviewContribution extends Disposable implements IWorkbenchContri
 
 	private boot(url: string): string {
 		const title = localize('openCode.title', "OpenCode");
-		const body = localize('openCode.boot', "Starting OpenCode runtime...");
-		const detail = localize('openCode.boot.detail', "Preparing OpenCode runtime...");
+		// allow-any-unicode-next-line
+		const body = localize('openCode.boot', "正在启动 OpenCode...");
+		// allow-any-unicode-next-line
+		const detail = localize('openCode.boot.detail', "请稍候");
 		return /* html */ `<!DOCTYPE html>
 <html lang="en">
 <head>
