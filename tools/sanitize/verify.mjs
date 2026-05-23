@@ -22,6 +22,7 @@ const verifiesSessionsOfficialEntries = activeSteps.has('rewrite-sessions-offici
 const verifiesProductFallbackDefaults = activeSteps.has('rewrite-product-fallback-defaults');
 const verifiesCopilotUiReferences = activeSteps.has('rewrite-copilot-ui-references');
 const verifiesOnboardingSignInDefaults = activeSteps.has('rewrite-onboarding-signin-defaults');
+const verifiesWelcomeStartupDefaults = activeSteps.has('rewrite-welcome-startup-defaults');
 const verifiesOpenCodeDevLauncher = activeSteps.has('rewrite-opencode-dev-launcher');
 const verifiesOpenCodeBridge = activeSteps.has('verify-opencode-bridge');
 const verifiesBrandingText = activeSteps.has('rewrite-branding-text');
@@ -332,6 +333,19 @@ if (verifiesOnboardingSignInDefaults) {
 	const variation = fs.readFileSync(path.join(root, 'src/vs/workbench/contrib/welcomeOnboarding/browser/onboardingVariationA.ts'), 'utf8');
 	if (!/private readonly steps = ONBOARDING_STEPS\.filter\(step => step !== OnboardingStepId\.SignIn\);/.test(variation)) {
 		console.error('[sanitize] failed: src/vs/workbench/contrib/welcomeOnboarding/browser/onboardingVariationA.ts.onboardingSignIn');
+		failed = true;
+	}
+}
+
+if (verifiesWelcomeStartupDefaults) {
+	const rel = 'src/vs/workbench/contrib/welcomeGettingStarted/browser/gettingStarted.contribution.ts';
+	const text = fs.readFileSync(path.join(root, rel), 'utf8');
+	if (/'workbench\.startupEditor': \{[\s\S]*?'default': 'welcomePage'/.test(text)) {
+		console.error(`[sanitize] failed: ${rel}.startupEditorDefault`);
+		failed = true;
+	}
+	if (!/'workbench\.startupEditor': \{[\s\S]*?'default': 'none'/.test(text)) {
+		console.error(`[sanitize] failed: ${rel}.startupEditorDefault`);
 		failed = true;
 	}
 }

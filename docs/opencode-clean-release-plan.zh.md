@@ -103,6 +103,7 @@ npm run gulp vscode-win32-x64-user-setup
 - Agents/Sessions 里的官方账号登录和 Copilot Chat sessions provider。
 - 常用设置、编辑遥测等 UI 边角里的 Copilot 默认引用。
 - 欢迎页和入门页里的 Sign in、Copilot、VS Code 官方文档链接等残留。
+- 首次启动默认不自动打开欢迎页。
 - Linux/Windows 安装包模板里的微软品牌文案。
 
 保留边界：

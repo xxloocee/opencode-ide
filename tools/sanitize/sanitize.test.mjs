@@ -176,6 +176,26 @@ test('verify clean-full rejects official welcome links and sign-in nudges', () =
 	assert.match(result.stderr + result.stdout, /brandingText/);
 });
 
+test('apply clean-full defaults startup editor to none', () => {
+	const root = makeFixtureRoot({ includeCoreWorkbenchChatEntry: true, includeStartupWelcomeDefault: true });
+
+	const result = runNode(applyScript, `--root=${root}`, '--profile=clean-full');
+
+	assert.equal(result.status, 0, result.stderr + result.stdout);
+	const text = fs.readFileSync(path.join(root, 'src', 'vs', 'workbench', 'contrib', 'welcomeGettingStarted', 'browser', 'gettingStarted.contribution.ts'), 'utf8');
+	assert.match(text, /'workbench\.startupEditor': \{[\s\S]*?'default': 'none'/);
+	assert.doesNotMatch(text, /'workbench\.startupEditor': \{[\s\S]*?'default': 'welcomePage'/);
+});
+
+test('verify clean-full rejects welcome page as startup editor default', () => {
+	const root = makeFixtureRoot({ includeStartupWelcomeDefault: true });
+
+	const result = runNode(verifyScript, `--root=${root}`, '--profile=clean-full');
+
+	assert.notEqual(result.status, 0);
+	assert.match(result.stderr + result.stdout, /startupEditorDefault/);
+});
+
 test('verify clean-full rejects OpenCode dev launcher without official extension disables', () => {
 	const root = makeFixtureRoot({ includeCoreWorkbenchChatEntry: true, includeOfficialExtensionLauncherDisables: false });
 
@@ -210,7 +230,7 @@ function makeFixtureRoot(options = {}) {
 	});
 	writeJson(path.join(root, 'config', 'sanitize', 'clean-full.json'), {
 		name: 'clean-full',
-		steps: ['rewrite-product', 'rewrite-package', 'rewrite-build-copilot', 'rewrite-build-auth', 'rewrite-telemetry-defaults', 'apply-overlays', 'apply-patches', 'rewrite-branding-text', 'rewrite-packaging', 'verify'],
+		steps: ['rewrite-product', 'rewrite-package', 'rewrite-build-copilot', 'rewrite-build-auth', 'rewrite-telemetry-defaults', 'apply-overlays', 'apply-patches', 'rewrite-branding-text', 'rewrite-welcome-startup-defaults', 'rewrite-packaging', 'verify'],
 		verifyChecks: [
 			'rewrite-workbench-chat-entries',
 			'rewrite-workbench-account-entries',
@@ -220,6 +240,7 @@ function makeFixtureRoot(options = {}) {
 			'rewrite-product-fallback-defaults',
 			'rewrite-copilot-ui-references',
 			'rewrite-onboarding-signin-defaults',
+			'rewrite-welcome-startup-defaults',
 			'rewrite-opencode-dev-launcher',
 			'verify-opencode-bridge'
 		],
@@ -342,6 +363,10 @@ function makeFixtureRoot(options = {}) {
 	writeText(path.join(root, 'src', 'vs', 'workbench', 'contrib', 'welcomeGettingStarted', 'common', 'gettingStartedContent.ts'), options.includeOfficialWelcomeDefaults
 		? "title: localize('gettingStarted.setup.title', \"Get started with VS Code\"),\nwalkthroughPageTitle: localize('gettingStarted.setup.walkthroughPageTitle', 'Setup VS Code'),\ncreateCopilotSetupStep('CopilotSetupAnonymous', CopilotAnonymousButton, 'chatAnonymous', true),\nButton(localize('watch', \"Watch Tutorial\"), 'https://aka.ms/vscode-getting-started-video')\nButton(localize('workspaceTrust', \"Workspace Trust\"), 'https://code.visualstudio.com/docs/editor/workspace-trust')\n"
 		: "title: localize('gettingStarted.setup.title', \"Get started with OpenCode IDE\"),\nwalkthroughPageTitle: localize('gettingStarted.setup.walkthroughPageTitle', 'Setup OpenCode IDE'),\nButton(localize('workspaceTrust', \"Workspace Trust\"), 'command:toSide:workbench.trust.manage')\n");
+	writeText(path.join(root, 'src', 'vs', 'workbench', 'contrib', 'welcomeGettingStarted', 'browser', 'gettingStarted.contribution.ts'), `'workbench.startupEditor': {
+	'default': '${options.includeStartupWelcomeDefault ? 'welcomePage' : 'none'}',
+}
+`);
 	writeText(path.join(root, 'src', 'vs', 'workbench', 'contrib', 'preferences', 'browser', 'settingsLayout.ts'), options.includeCopilotUiReferences ? "const COMMONLY_USED_SETTINGS = [\n\t'editor.fontSize',\n\t'GitHub.copilot-chat.manageExtension',\n];\n" : "const COMMONLY_USED_SETTINGS = [\n\t'editor.fontSize',\n];\n");
 	writeText(path.join(root, 'src', 'vs', 'workbench', 'contrib', 'editTelemetry', 'browser', 'telemetry', 'editSourceTrackingFeature.ts'), options.includeCopilotUiReferences ? "import { derived, observableFromEvent } from '../../../../../base/common/observable.js';\nimport { IExtensionService } from '../../../../services/extensions/common/extensions.js';\nclass Feature {\n\tconstructor(@IExtensionService private readonly _extensionService: IExtensionService) {\n\t\tconst extensions = observableFromEvent(this._extensionService.onDidChangeExtensions, () => {\n\t\t\treturn this._extensionService.extensions;\n\t\t});\n\t\tconst extensionIds = derived(reader => new Set(extensions.read(reader).map(e => e.id?.toLowerCase())));\n\t\tfunction getExtensionInfoObs(extensionId: string, extensionService: IExtensionService) {\n\t\t\tconst extIdLowerCase = extensionId.toLowerCase();\n\t\t\treturn derived(reader => extensionIds.read(reader).has(extIdLowerCase));\n\t\t}\n\n\t\tconst copilotInstalled = getExtensionInfoObs('GitHub.copilot', this._extensionService);\n\t\tconst copilotChatInstalled = getExtensionInfoObs('GitHub.copilot-chat', this._extensionService);\n\n\t\tconst shouldSendDetails = derived(reader => editSourceDetailsEnabled.read(reader) || !!copilotInstalled.read(reader) || !!copilotChatInstalled.read(reader));\n\t}\n}\n" : "import { derived, observableFromEvent } from '../../../../../base/common/observable.js';\nclass Feature {\n\tconstructor() {\n\t\tconst shouldSendDetails = derived(reader => editSourceDetailsEnabled.read(reader));\n\t}\n}\n");
 	const defaultAccountCommandImport = "import { DEFAULT_ACCOUNT_SIGN_IN_COMMAND } from '../../../services/accounts/browser/defaultAccount.js';\n";
