@@ -31,6 +31,8 @@ for (const step of config.steps || []) {
 		rewriteTelemetryDefaults();
 	} else if (step === 'rewrite-branding-text') {
 		rewriteBrandingText();
+	} else if (step === 'rewrite-welcome-startup-defaults') {
+		rewriteWelcomeStartupDefaults();
 	} else if (step === 'rewrite-product-icons') {
 		rewriteProductIcons();
 	} else if (step === 'apply-overlays') {
@@ -383,6 +385,14 @@ function rewriteBrandingText() {
 	);
 
 	console.log('[sanitize] rewrite-branding-text');
+}
+
+function rewriteWelcomeStartupDefaults() {
+	rewriteTextFile(path.join(root, 'src', 'vs', 'workbench', 'contrib', 'welcomeGettingStarted', 'browser', 'gettingStarted.contribution.ts'), text => text
+		.replace(/('workbench\.startupEditor': \{[\s\S]*?'default': )'welcomePage'(,)/, "$1'none'$2")
+	);
+
+	console.log('[sanitize] rewrite-welcome-startup-defaults');
 }
 
 function rewritePackaging() {

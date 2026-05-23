@@ -9,6 +9,7 @@
     "apply-overlays",
     "apply-patches",
     "rewrite-branding-text",
+    "rewrite-welcome-startup-defaults",
     "rewrite-product-icons",
     "rewrite-packaging",
     "verify"
@@ -22,6 +23,7 @@
     "rewrite-product-fallback-defaults",
     "rewrite-copilot-ui-references",
     "rewrite-onboarding-signin-defaults",
+    "rewrite-welcome-startup-defaults",
     "rewrite-opencode-dev-launcher",
     "verify-opencode-bridge"
   ],
