@@ -25,6 +25,7 @@ const verifiesOnboardingSignInDefaults = activeSteps.has('rewrite-onboarding-sig
 const verifiesOpenCodeDevLauncher = activeSteps.has('rewrite-opencode-dev-launcher');
 const verifiesOpenCodeBridge = activeSteps.has('verify-opencode-bridge');
 const verifiesBrandingText = activeSteps.has('rewrite-branding-text');
+const verifiesProductIcons = activeSteps.has('rewrite-product-icons');
 
 let failed = false;
 
@@ -396,6 +397,33 @@ for (const [rel, snippet] of packagingMustInclude) {
 	if (!text.includes(snippet)) {
 		console.error(`[sanitize] failed: ${rel}`);
 		failed = true;
+	}
+}
+
+if (verifiesProductIcons) {
+	const iconChecks = [
+		['code.ico', 'resources/win32/code.ico'],
+		['code_70x70.png', 'resources/win32/code_70x70.png'],
+		['code_150x150.png', 'resources/win32/code_150x150.png'],
+		['code.icns', 'resources/darwin/code.icns'],
+		['code.png', 'resources/linux/code.png'],
+		['favicon.ico', 'resources/server/favicon.ico'],
+		['code-192.png', 'resources/server/code-192.png'],
+		['code-512.png', 'resources/server/code-512.png'],
+	];
+
+	for (const [sourceName, targetRel] of iconChecks) {
+		const source = path.join(defaultRoot, 'config', 'sanitize', 'assets', 'product-icons', sourceName);
+		const target = path.join(root, targetRel);
+		if (!fs.existsSync(source) || !fs.existsSync(target)) {
+			console.error(`[sanitize] failed: ${targetRel}.productIconExists`);
+			failed = true;
+			continue;
+		}
+		if (!fs.readFileSync(source).equals(fs.readFileSync(target))) {
+			console.error(`[sanitize] failed: ${targetRel}.productIcon`);
+			failed = true;
+		}
 	}
 }
 

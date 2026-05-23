@@ -31,6 +31,8 @@ for (const step of config.steps || []) {
 		rewriteTelemetryDefaults();
 	} else if (step === 'rewrite-branding-text') {
 		rewriteBrandingText();
+	} else if (step === 'rewrite-product-icons') {
+		rewriteProductIcons();
 	} else if (step === 'apply-overlays') {
 		applyConfiguredOverlays();
 	} else if (step === 'apply-patches') {
@@ -436,6 +438,30 @@ function rewritePackaging() {
 	);
 
 	console.log('[sanitize] rewrite-packaging');
+}
+
+function rewriteProductIcons() {
+	const iconRoot = path.join(defaultRoot, 'config', 'sanitize', 'assets', 'product-icons');
+	const icons = [
+		['code.ico', 'resources/win32/code.ico'],
+		['code_70x70.png', 'resources/win32/code_70x70.png'],
+		['code_150x150.png', 'resources/win32/code_150x150.png'],
+		['code.icns', 'resources/darwin/code.icns'],
+		['code.png', 'resources/linux/code.png'],
+		['favicon.ico', 'resources/server/favicon.ico'],
+		['code-192.png', 'resources/server/code-192.png'],
+		['code-512.png', 'resources/server/code-512.png'],
+	];
+
+	for (const [sourceName, targetRel] of icons) {
+		const source = path.join(iconRoot, sourceName);
+		if (!fs.existsSync(source)) {
+			throw new Error(`Missing product icon asset: ${source}`);
+		}
+		fs.copyFileSync(source, path.join(root, targetRel));
+	}
+
+	console.log('[sanitize] rewrite-product-icons');
 }
 
 function rewriteTextFile(file, transform) {
