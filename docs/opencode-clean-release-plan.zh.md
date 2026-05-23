@@ -60,6 +60,39 @@ node tools\sanitize\verify.mjs --profile=clean-full
 
 CI workflow 会在构建前自动执行以上流程。本地通常只需要在修改净化规则或 rebase 后手动跑一遍。
 
+## 本地手动构建
+
+手动构建前先完成净化和校验：
+
+```powershell
+node tools\sanitize\sanitize.test.mjs
+node tools\sanitize\apply.mjs --profile=clean-full
+node tools\sanitize\verify.mjs --profile=clean-full
+```
+
+然后安装依赖并执行对应平台的构建任务。以 Windows x64 系统安装包为例：
+
+```powershell
+npm ci
+npm run gulp vscode-win32-x64-system-setup
+```
+
+命令含义：
+
+- `npm ci`：按 `package-lock.json` 精确安装仓库依赖，适合 CI 和干净本地构建；它会重建 `node_modules`，确保后续 gulp 构建使用锁定版本。
+- `npm run gulp vscode-win32-x64-system-setup`：通过仓库里的 gulp 构建入口执行 `vscode-win32-x64-system-setup` 任务，生成 Windows x64 的系统级安装器。
+
+常用 Windows x64 本地产物任务：
+
+```powershell
+npm run gulp vscode-win32-x64-min
+npm run gulp vscode-win32-x64-inno-updater
+npm run gulp vscode-win32-x64-system-setup
+npm run gulp vscode-win32-x64-user-setup
+```
+
+其中 `vscode-win32-x64-min` 生成最小化客户端目录，后续 setup 任务会基于构建输出生成安装器。只跑 `system-setup` 时，如果缺少前置构建输出，可能需要先跑 `vscode-win32-x64-min`。
+
 ## 净化边界
 
 `clean-full` 当前覆盖：
