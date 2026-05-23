@@ -174,10 +174,10 @@ const sourceMappingURLBase = `https://main.vscode-cdn.net/sourcemaps/${commit}`;
 const isCI = !!process.env['CI'] || !!process.env['BUILD_ARTIFACTSTAGINGDIRECTORY'] || !!process.env['GITHUB_WORKSPACE'];
 const useCdnSourceMapsForPackagingTasks = isCI;
 const stripSourceMapsInPackagingTasks = isCI;
-const openCodeSourceRepoPath = process.env['QUANTCODE_OPENCODE_SOURCE_DIR'] || path.join(path.dirname(root), 'opencode-source');
+const openCodeSourceRepoPath = process.env['ERGOUZICODE_OPENCODE_SOURCE_DIR'] || path.join(path.dirname(root), 'opencode-private');
 const openCodePackagePath = path.join(openCodeSourceRepoPath, 'packages', 'opencode');
 const openCodeGenerativeUiBundlePath = path.join(openCodeSourceRepoPath, 'packages', 'opencode-generative-ui', 'runtime-config');
-const skipOpenCodeBaselineBuild = process.env['QUANTCODE_OPENCODE_SKIP_BASELINE'] === '1';
+const skipOpenCodeBaselineBuild = process.env['ERGOUZICODE_OPENCODE_SKIP_BASELINE'] === '1';
 
 interface IBundledOpenCodeRuntimeFile {
 	readonly source: string;
@@ -235,7 +235,7 @@ function getBundledOpenCodeRuntimeFiles(platform: string, arch: string): readonl
 
 	if (runtimeFiles.length === 0) {
 		throw new Error(
-			`Bundled OpenCode runtime is missing. Build opencode-source first or set QUANTCODE_OPENCODE_SOURCE_DIR.\nExpected at least:\n${path.join(openCodeSourceRepoPath, 'packages', 'opencode', 'dist', variants[0].folder, 'bin', platform === 'win32' ? 'opencode.exe' : 'opencode')}`
+			`Bundled OpenCode runtime is missing. Build opencode-private first or set ERGOUZICODE_OPENCODE_SOURCE_DIR.\nExpected at least:\n${path.join(openCodeSourceRepoPath, 'packages', 'opencode', 'dist', variants[0].folder, 'bin', platform === 'win32' ? 'opencode.exe' : 'opencode')}`
 		);
 	}
 
@@ -251,7 +251,7 @@ function buildBundledOpenCodeRuntimeTask(platform: string, arch: string): task.T
 	return task.define(`build-opencode-runtime-${platform}-${arch}`, cb => {
 		const done = cb ?? (() => { });
 		if (!fs.existsSync(openCodePackagePath)) {
-			done(new Error(`OpenCode source repo not found at ${openCodePackagePath}. Set QUANTCODE_OPENCODE_SOURCE_DIR to continue.`));
+			done(new Error(`OpenCode source repo not found at ${openCodePackagePath}. Set ERGOUZICODE_OPENCODE_SOURCE_DIR to continue.`));
 			return;
 		}
 
@@ -295,7 +295,7 @@ function buildBundledOpenCodeRuntimeTask(platform: string, arch: string): task.T
 			}
 
 			if (canBuildNatively && arch === 'x64' && skipOpenCodeBaselineBuild) {
-				console.warn('[build-opencode-runtime] Skipping baseline runtime build because QUANTCODE_OPENCODE_SKIP_BASELINE=1.');
+				console.warn('[build-opencode-runtime] Skipping baseline runtime build because ERGOUZICODE_OPENCODE_SKIP_BASELINE=1.');
 			}
 
 			try {

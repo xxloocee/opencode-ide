@@ -26,10 +26,10 @@
    - 仓库：`opencode-ide`
    - 宿主产品：OpenCode IDE
    - 助手内核仓库：`opencode-private`
-2. 仍然真实存在的历史技术标识
-   - 环境变量：`QUANTCODE_OPENCODE_SOURCE_DIR`
-   - 环境变量：`QUANTCODE_OPENCODE_SKIP_BASELINE`
-   - 应用名与产物：`QuantCode.exe`、`QuantCode Preview`
+2. 当前真实存在的技术标识
+   - 环境变量：`ERGOUZICODE_OPENCODE_SOURCE_DIR`
+   - 环境变量：`ERGOUZICODE_OPENCODE_SKIP_BASELINE`
+   - 应用名与产物：`ErgouziCode.exe`、`ErgouziCode Preview`
    - 安装器中间文件：`VSCodeSetup.exe`
 
 文档里的原则是：
@@ -108,21 +108,21 @@
 
 ## 关键环境变量
 
-### `QUANTCODE_OPENCODE_SOURCE_DIR`
+### `ERGOUZICODE_OPENCODE_SOURCE_DIR`
 
 作用：
 
 - 告诉 `opencode-ide` 去哪里找 OpenCode 源码并构建 runtime。
 
-虽然变量名里还是 `QUANTCODE` 和 `SOURCE_DIR`，但当前在本地仓库布局里，它实际应该指向 `opencode-private`。
+默认相邻目录已经切到 `opencode-private`；如果你的本地目录不同，可以用这个变量显式指定。
 
 本机示例：
 
 ```powershell
-$env:QUANTCODE_OPENCODE_SOURCE_DIR='D:\Project\Wan\opencode-private'
+$env:ERGOUZICODE_OPENCODE_SOURCE_DIR='D:\Project\Wan\opencode-private'
 ```
 
-### `QUANTCODE_OPENCODE_SKIP_BASELINE`
+### `ERGOUZICODE_OPENCODE_SKIP_BASELINE`
 
 作用：
 
@@ -137,7 +137,7 @@ $env:QUANTCODE_OPENCODE_SOURCE_DIR='D:\Project\Wan\opencode-private'
 本机示例：
 
 ```powershell
-$env:QUANTCODE_OPENCODE_SKIP_BASELINE='1'
+$env:ERGOUZICODE_OPENCODE_SKIP_BASELINE='1'
 ```
 
 注意：
@@ -167,8 +167,8 @@ bun run --cwd D:\Project\Wan\opencode-private\packages\opencode build --single
 命令：
 
 ```powershell
-$env:QUANTCODE_OPENCODE_SOURCE_DIR='D:\Project\Wan\opencode-private'
-$env:QUANTCODE_OPENCODE_SKIP_BASELINE='1'
+$env:ERGOUZICODE_OPENCODE_SOURCE_DIR='D:\Project\Wan\opencode-private'
+$env:ERGOUZICODE_OPENCODE_SKIP_BASELINE='1'
 npm run gulp "vscode-win32-x64-min"
 ```
 
@@ -190,14 +190,14 @@ npm run gulp "vscode-win32-x64-min"
 
 其中关键文件包括：
 
-- 当前主程序文件名仍是：`D:\Project\Wan\VSCode-win32-x64\QuantCode.exe`
+- 当前主程序文件名是：`D:\Project\Wan\VSCode-win32-x64\ErgouziCode.exe`
 - OpenCode runtime：`D:\Project\Wan\VSCode-win32-x64\resources\app\opencode\bin\opencode.exe`
 
 这里要特别注意：
 
 - 产品协作关系已经是 OpenCode IDE + OpenCode
-- 但当前 `product.json` 里应用名仍是 `QuantCode Preview`
-- 所以运行文件名还没完成产品级重命名
+- 当前 `product.json` 里的应用名是 `ErgouziCode Preview`
+- 运行文件名已经完成产品级重命名
 
 ### 第三步：补齐 Windows 安装器前置工具
 
@@ -220,16 +220,16 @@ npm run gulp "vscode-win32-x64-inno-updater"
 系统安装版：
 
 ```powershell
-$env:QUANTCODE_OPENCODE_SOURCE_DIR='D:\Project\Wan\opencode-private'
-$env:QUANTCODE_OPENCODE_SKIP_BASELINE='1'
+$env:ERGOUZICODE_OPENCODE_SOURCE_DIR='D:\Project\Wan\opencode-private'
+$env:ERGOUZICODE_OPENCODE_SKIP_BASELINE='1'
 npm run gulp "vscode-win32-x64-system-setup"
 ```
 
 用户安装版：
 
 ```powershell
-$env:QUANTCODE_OPENCODE_SOURCE_DIR='D:\Project\Wan\opencode-private'
-$env:QUANTCODE_OPENCODE_SKIP_BASELINE='1'
+$env:ERGOUZICODE_OPENCODE_SOURCE_DIR='D:\Project\Wan\opencode-private'
+$env:ERGOUZICODE_OPENCODE_SKIP_BASELINE='1'
 npm run gulp "vscode-win32-x64-user-setup"
 ```
 
@@ -242,7 +242,7 @@ npm run gulp "vscode-win32-x64-user-setup"
 
 注意：
 
-- 当前工作流会把这些中间产物再重命名为 `QuantCodeSetup-*` 之类的发布文件名
+- 当前工作流会把这些中间产物再重命名为 `ErgouziCodeSetup-*` 之类的发布文件名
 - 但构建目录里的原始文件名仍然是 `VSCodeSetup.exe`
 
 ## 产物区别
@@ -256,7 +256,7 @@ npm run gulp "vscode-win32-x64-user-setup"
 特点：
 
 - 这是安装前的 staging 目录。
-- 可以直接运行当前实际产物 `QuantCode.exe`。
+- 可以直接运行当前实际产物 `ErgouziCode.exe`。
 - 适合本机快速验证。
 - 不等于安装器安装后的最终目录。
 
@@ -312,7 +312,7 @@ npm run gulp "vscode-win32-x64-user-setup"
 多窗口场景下：
 
 - 每个窗口可能会拉起自己的 OpenCode runtime。
-- 看到多个 `QuantCode.exe` 和多个 `opencode.exe` 进程是正常的。
+- 看到多个 `ErgouziCode.exe` 和多个 `opencode.exe` 进程是正常的。
 - 这符合 Electron / VS Code 多进程模型。
 
 ## macOS 和 Linux 当前建议
@@ -366,10 +366,10 @@ npm run gulp "vscode-win32-x64-user-setup"
 
 ### 安装器和应用名
 
-当前代码里的实际命名仍然带有明显历史痕迹：
+当前构建链路里仍然有少量 VS Code / Inno Setup 历史中间名：
 
-- `product.json` 里是 `QuantCode Preview`
-- 可执行文件当前仍是 `QuantCode.exe`
+- `product.json` 里是 `ErgouziCode Preview`
+- 可执行文件当前是 `ErgouziCode.exe`
 - Inno Setup 中间产物仍是 `VSCodeSetup.exe`
 
 这不影响功能，但意味着“项目协作改名”还没有完全落到最终构建产物。
