@@ -9,6 +9,7 @@
     "apply-overlays",
     "apply-patches",
     "rewrite-branding-text",
+    "rewrite-product-icons",
     "rewrite-packaging",
     "verify"
   ],
