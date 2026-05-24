@@ -79,6 +79,7 @@ jobs:
     env:
       OPENCODE_REPOSITORY: ${{ github.event_name == 'workflow_dispatch' && inputs.opencode_repository || 'xxloocee/opencode-private' }}
       OPENCODE_REF: ${{ github.event_name == 'workflow_dispatch' && inputs.opencode_ref || 'main' }}
+      ERGOUZICODE_OPENCODE_SOURCE_DIR: ${{ github.workspace }}/opencode-source
       OPENCODE_IDE_OPENCODE_SOURCE_DIR: ${{ github.workspace }}/opencode-source
       QUANTCODE_OPENCODE_SOURCE_DIR: ${{ github.workspace }}/opencode-source
       GITHUB_TOKEN: ${{ secrets.CROSS_REPO_GH_TOKEN || secrets.UPSTREAM_SYNC_TOKEN || github.token }}
@@ -207,6 +208,19 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
+          function Add-WindowsSdkToolsToPath {
+            $sdkRoot = Join-Path ${env:ProgramFiles(x86)} "Windows Kits\10\bin"
+            $signtool = Get-ChildItem -Path $sdkRoot -Recurse -Filter signtool.exe -ErrorAction SilentlyContinue |
+              Where-Object { $_.FullName -match '\\(x64|arm64)\\signtool\.exe$' } |
+              Sort-Object FullName -Descending |
+              Select-Object -First 1
+            if (-not $signtool) {
+              throw "signtool.exe was not found under $sdkRoot"
+            }
+            $env:PATH = "$($signtool.DirectoryName);$env:PATH"
+            Write-Host "Using signtool from $($signtool.FullName)"
+          }
+
           function Invoke-NativeStep {
             param([string[]] $Command)
             & $Command[0] $Command[1..($Command.Length - 1)]
@@ -215,6 +229,7 @@ jobs:
             }
           }
 
+          Add-WindowsSdkToolsToPath
           Invoke-NativeStep @("npm", "run", "gulp", "vscode-win32-${{ matrix.arch }}-min")
           Invoke-NativeStep @("npm", "run", "gulp", "vscode-win32-${{ matrix.arch }}-inno-updater")
           Invoke-NativeStep @("npm", "run", "gulp", "vscode-win32-${{ matrix.arch }}-system-setup")
