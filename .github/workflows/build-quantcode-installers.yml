@@ -335,12 +335,34 @@ jobs:
           path: dist
           merge-multiple: true
 
+      - name: Select release assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p release-assets
+          shopt -s nullglob
+
+          release_assets=(
+            dist/OpenCodeIDESetup-*.exe
+            dist/OpenCodeIDEUserSetup-*.exe
+            dist/OpenCodeIDE-darwin-*.dmg
+            dist/*.deb
+            dist/*.rpm
+          )
+
+          if [ "${#release_assets[@]}" -eq 0 ]; then
+            echo "No installer release assets were found." >&2
+            exit 1
+          fi
+
+          cp "${release_assets[@]}" release-assets/
+
       - name: Generate checksums
         shell: bash
         run: |
           set -euo pipefail
-          cd dist
-          sha256sum * > SHA256SUMS.txt
+          cd release-assets
+          sha256sum * > ../dist/SHA256SUMS.txt
 
       - name: Generate release notes
         shell: bash
@@ -378,6 +400,6 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            dist/*
+            release-assets/*
           body_path: dist/RELEASE_NOTES.md
           generate_release_notes: true

@@ -164,10 +164,18 @@ Linux：
 - `.deb`
 - `.rpm`
 
-每个平台还会附带：
+每个平台的 workflow artifact 还会附带：
 
 - `BUILD_INFO-<platform>-<arch>.txt`
 - `SHA256SUMS.txt`，由 release job 统一生成。
+
+GitHub Release 页面只上传最终安装包：
+
+- Windows：`OpenCodeIDESetup-*.exe`、`OpenCodeIDEUserSetup-*.exe`
+- macOS：`OpenCodeIDE-darwin-*.dmg`
+- Linux：`.deb`、`.rpm`
+
+`zip`、`tar.gz` 和 `BUILD_INFO-*.txt` 只保留在 workflow artifact 或 release notes 中，不作为 release asset 上传。
 
 ## 测试 tag 流程
 
