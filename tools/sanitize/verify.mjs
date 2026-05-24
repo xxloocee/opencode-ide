@@ -421,9 +421,15 @@ if (verifiesProductIcons) {
 		['code_150x150.png', 'resources/win32/code_150x150.png'],
 		['code.icns', 'resources/darwin/code.icns'],
 		['code.png', 'resources/linux/code.png'],
+		['code.xpm', 'resources/linux/rpm/code.xpm'],
 		['favicon.ico', 'resources/server/favicon.ico'],
 		['code-192.png', 'resources/server/code-192.png'],
 		['code-512.png', 'resources/server/code-512.png'],
+		['code-icon.svg', 'src/vs/workbench/browser/media/code-icon.svg'],
+		['code-icon.svg', 'src/vs/sessions/browser/media/vscode-icon.svg'],
+		['code-icon.svg', 'extensions/github-authentication/media/code-icon.svg'],
+		['favicon.ico', 'extensions/github-authentication/media/favicon.ico'],
+		['favicon.ico', 'extensions/microsoft-authentication/media/favicon.ico'],
 	];
 
 	for (const [sourceName, targetRel] of iconChecks) {
@@ -438,6 +444,12 @@ if (verifiesProductIcons) {
 			console.error(`[sanitize] failed: ${targetRel}.productIcon`);
 			failed = true;
 		}
+	}
+
+	const manifest = JSON.parse(fs.readFileSync(path.join(root, 'resources', 'server', 'manifest.json'), 'utf8'));
+	if (manifest.name !== 'OpenCode IDE' || manifest.short_name !== 'OpenCode IDE') {
+		console.error('[sanitize] failed: resources/server/manifest.json.productIconBranding');
+		failed = true;
 	}
 }
 
