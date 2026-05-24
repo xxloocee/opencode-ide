@@ -1,0 +1,36 @@
+{
+  "name": "clean-full",
+  "steps": [
+    "rewrite-product",
+    "rewrite-package",
+    "rewrite-build-copilot",
+    "rewrite-build-auth",
+    "rewrite-telemetry-defaults",
+    "apply-overlays",
+    "apply-patches",
+    "rewrite-branding-text",
+    "rewrite-welcome-startup-defaults",
+    "rewrite-product-icons",
+    "rewrite-packaging",
+    "verify"
+  ],
+  "verifyChecks": [
+    "rewrite-workbench-chat-entries",
+    "rewrite-workbench-account-entries",
+    "rewrite-default-account-entries",
+    "rewrite-accounts-activity-default",
+    "rewrite-sessions-official-entries",
+    "rewrite-product-fallback-defaults",
+    "rewrite-copilot-ui-references",
+    "rewrite-onboarding-signin-defaults",
+    "rewrite-welcome-startup-defaults",
+    "rewrite-opencode-dev-launcher",
+    "verify-opencode-bridge"
+  ],
+  "overlays": [
+    "clean-full"
+  ],
+  "patchSets": [
+    "opencode-clean"
+  ]
+}

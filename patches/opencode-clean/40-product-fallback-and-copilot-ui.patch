@@ -1,0 +1,100 @@
+﻿diff --git a/src/vs/platform/product/common/product.ts b/src/vs/platform/product/common/product.ts
+index 3af87ba6493..3cb19f5fb05 100644
+--- a/src/vs/platform/product/common/product.ts
++++ b/src/vs/platform/product/common/product.ts
+@@ -62,26 +62,26 @@ else {
+ 	if (Object.keys(product).length === 0) {
+ 		Object.assign(product, {
+ 			version: '1.104.0-dev',
+-			nameShort: 'Code - OSS Dev',
+-			nameLong: 'Code - OSS Dev',
+-			applicationName: 'code-oss',
+-			dataFolderName: '.vscode-oss',
+-			urlProtocol: 'code-oss',
+-			reportIssueUrl: 'https://github.com/microsoft/vscode/issues/new',
++			nameShort: 'OpenCode IDE Dev',
++			nameLong: 'OpenCode IDE Dev',
++			applicationName: 'opencode-ide',
++			dataFolderName: '.opencode-ide',
++			urlProtocol: 'opencode-ide',
++			reportIssueUrl: 'https://github.com/xxloocee/opencode-ide/issues/new',
+ 			licenseName: 'MIT',
+-			licenseUrl: 'https://github.com/microsoft/vscode/blob/main/LICENSE.txt',
+-			serverLicenseUrl: 'https://github.com/microsoft/vscode/blob/main/LICENSE.txt',
++			licenseUrl: 'https://github.com/xxloocee/opencode-ide/blob/main/LICENSE.txt',
++			serverLicenseUrl: 'https://github.com/xxloocee/opencode-ide/blob/main/LICENSE.txt',
+ 			defaultChatAgent: {
+-				extensionId: 'GitHub.copilot',
+-				chatExtensionId: 'GitHub.copilot-chat',
++				extensionId: 'opencode.ide-placeholder',
++				chatExtensionId: 'opencode.ide-placeholder-chat',
+ 				provider: {
+ 					default: {
+-						id: 'github',
+-						name: 'GitHub',
++						id: 'opencode',
++						name: 'OpenCode',
+ 					},
+ 					enterprise: {
+-						id: 'github-enterprise',
+-						name: 'GitHub Enterprise',
++						id: 'opencode-enterprise',
++						name: 'OpenCode Enterprise',
+ 					}
+ 				},
+ 				providerScopes: []
+diff --git a/src/vs/workbench/contrib/editTelemetry/browser/telemetry/editSourceTrackingFeature.ts b/src/vs/workbench/contrib/editTelemetry/browser/telemetry/editSourceTrackingFeature.ts
+index 2a7e05d78b8..0ee4bc9b355 100644
+--- a/src/vs/workbench/contrib/editTelemetry/browser/telemetry/editSourceTrackingFeature.ts
++++ b/src/vs/workbench/contrib/editTelemetry/browser/telemetry/editSourceTrackingFeature.ts
+@@ -26,7 +26,6 @@ import { IAnnotatedDocuments } from '../helpers/annotatedDocuments.js';
+ import { DataChannelForwardingTelemetryService } from '../../../../../platform/dataChannel/browser/forwardingTelemetryService.js';
+ import { EDIT_TELEMETRY_DETAILS_SETTING_ID, EDIT_TELEMETRY_SHOW_DECORATIONS, EDIT_TELEMETRY_SHOW_STATUS_BAR } from '../settings.js';
+ import { VSCodeWorkspace } from '../helpers/vscodeObservableWorkspace.js';
+-import { IExtensionService } from '../../../../services/extensions/common/extensions.js';
+ 
+ export class EditTrackingFeature extends Disposable {
+ 
+@@ -41,9 +40,7 @@ export class EditTrackingFeature extends Disposable {
+ 		@IConfigurationService private readonly _configurationService: IConfigurationService,
+ 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+ 		@IStatusbarService private readonly _statusbarService: IStatusbarService,
+-
+ 		@IEditorService private readonly _editorService: IEditorService,
+-		@IExtensionService private readonly _extensionService: IExtensionService,
+ 	) {
+ 		super();
+ 
+@@ -51,19 +48,7 @@ export class EditTrackingFeature extends Disposable {
+ 		this._editSourceTrackingShowStatusBar = observableConfigValue(EDIT_TELEMETRY_SHOW_STATUS_BAR, false, this._configurationService);
+ 		const editSourceDetailsEnabled = observableConfigValue(EDIT_TELEMETRY_DETAILS_SETTING_ID, false, this._configurationService);
+ 
+-		const extensions = observableFromEvent(this._extensionService.onDidChangeExtensions, () => {
+-			return this._extensionService.extensions;
+-		});
+-		const extensionIds = derived(reader => new Set(extensions.read(reader).map(e => e.id?.toLowerCase())));
+-		function getExtensionInfoObs(extensionId: string, extensionService: IExtensionService) {
+-			const extIdLowerCase = extensionId.toLowerCase();
+-			return derived(reader => extensionIds.read(reader).has(extIdLowerCase));
+-		}
+-
+-		const copilotInstalled = getExtensionInfoObs('GitHub.copilot', this._extensionService);
+-		const copilotChatInstalled = getExtensionInfoObs('GitHub.copilot-chat', this._extensionService);
+-
+-		const shouldSendDetails = derived(reader => editSourceDetailsEnabled.read(reader) || !!copilotInstalled.read(reader) || !!copilotChatInstalled.read(reader));
++		const shouldSendDetails = derived(reader => editSourceDetailsEnabled.read(reader));
+ 
+ 		const instantiationServiceWithInterceptedTelemetry = this._instantiationService.createChild(new ServiceCollection(
+ 			[ITelemetryService, this._instantiationService.createInstance(DataChannelForwardingTelemetryService)]
+diff --git a/src/vs/workbench/contrib/preferences/browser/settingsLayout.ts b/src/vs/workbench/contrib/preferences/browser/settingsLayout.ts
+index 5d1c11fac90..8b089f7276e 100644
+--- a/src/vs/workbench/contrib/preferences/browser/settingsLayout.ts
++++ b/src/vs/workbench/contrib/preferences/browser/settingsLayout.ts
+@@ -31,7 +31,6 @@ const COMMONLY_USED_SETTINGS: readonly string[] = [
+ 	'editor.fontSize',
+ 	'editor.formatOnSave',
+ 	'files.autoSave',
+-	'GitHub.copilot-chat.manageExtension',
+ 	'editor.defaultFormatter',
+ 	'editor.fontFamily',
+ 	'editor.wordWrap',

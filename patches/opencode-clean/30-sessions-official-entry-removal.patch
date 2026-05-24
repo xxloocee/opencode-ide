@@ -1,0 +1,75 @@
+﻿diff --git a/src/vs/sessions/electron-browser/sessions.main.ts b/src/vs/sessions/electron-browser/sessions.main.ts
+index 0ce5c5086dd..d80eecc2bad 100644
+--- a/src/vs/sessions/electron-browser/sessions.main.ts
++++ b/src/vs/sessions/electron-browser/sessions.main.ts
+@@ -58,8 +58,7 @@ import { ElectronRemoteResourceLoader } from '../../platform/remote/electron-bro
+ import { IConfigurationService } from '../../platform/configuration/common/configuration.js';
+ import { applyZoom } from '../../platform/window/electron-browser/window.js';
+ import { mainWindow } from '../../base/browser/window.js';
+-import { IDefaultAccountService } from '../../platform/defaultAccount/common/defaultAccount.js';
+-import { DefaultAccountService } from '../../workbench/services/accounts/browser/defaultAccount.js';
++import { IDefaultAccountService, NullDefaultAccountService } from '../../platform/defaultAccount/common/defaultAccount.js';
+ import { AccountPolicyService, IAccountPolicyGateService } from '../../workbench/services/policies/common/accountPolicyService.js';
+ import { MultiplexPolicyService } from '../../workbench/services/policies/common/multiplexPolicyService.js';
+ import { Workbench as AgenticWorkbench } from '../browser/workbench.js';
+@@ -211,7 +210,7 @@ export class SessionsMain extends Disposable {
+ 		}
+ 
+ 		// Default Account
+-		const defaultAccountService = this._register(new DefaultAccountService(productService));
++		const defaultAccountService = this._register(new NullDefaultAccountService());
+ 		serviceCollection.set(IDefaultAccountService, defaultAccountService);
+ 
+ 		// Policies
+diff --git a/src/vs/sessions/sessions.common.main.ts b/src/vs/sessions/sessions.common.main.ts
+index 74576dc9833..c7045a81642 100644
+--- a/src/vs/sessions/sessions.common.main.ts
++++ b/src/vs/sessions/sessions.common.main.ts
+@@ -195,9 +195,6 @@ registerSingleton(ISessionsSetUpService, SessionsSetUpService, InstantiationType
+ 
+ //#region --- workbench contributions
+ 
+-// Default Account
+-import '../workbench/services/accounts/browser/defaultAccount.js';
+-
+ // Telemetry
+ import '../workbench/contrib/telemetry/browser/telemetry.contribution.js';
+ 
+@@ -215,12 +212,7 @@ import '../workbench/contrib/notebook/browser/notebook.contribution.js';
+ // Speech
+ import '../workbench/contrib/speech/browser/speech.contribution.js';
+ 
+-// Chat
+-import '../workbench/contrib/chat/browser/chat.shared.contribution.js';
+-//import '../workbench/contrib/inlineChat/browser/inlineChat.contribution.js';
+ import '../workbench/contrib/mcp/browser/mcp.contribution.js';
+-import '../workbench/contrib/chat/browser/chatSessions/chatSessions.contribution.js';
+-import '../workbench/contrib/chat/browser/contextContrib/chatContext.contribution.js';
+ import '../workbench/contrib/imageCarousel/browser/imageCarousel.contribution.js';
+ 
+ // Interactive
+@@ -382,9 +374,6 @@ import '../workbench/contrib/codeEditor/browser/outline/documentSymbolsOutline.j
+ // Language Detection
+ import '../workbench/contrib/languageDetection/browser/languageDetection.contribution.js';
+ 
+-// Authentication
+-import '../workbench/contrib/authentication/browser/authentication.contribution.js';
+-
+ // User Data Profiles
+ import '../workbench/contrib/userDataProfile/browser/userDataProfile.contribution.js';
+ 
+@@ -445,14 +434,12 @@ import './browser/parts/editorParts.js';
+ import './browser/parts/menubar.contribution.js';
+ import './browser/layoutActions.js';
+ 
+-import './contrib/accountMenu/browser/account.contribution.js';
+ import './contrib/aiCustomizationTreeView/browser/aiCustomizationTreeView.contribution.js';
+ import './contrib/chat/browser/chat.contribution.js';
+ import './contrib/providers/agentHost/browser/exportDebugLogsAction.js';
+ import './contrib/providers/agentHost/browser/agentHostSessionConfigPicker.js';
+ import './contrib/chat/browser/customizationsDebugLog.contribution.js';
+-import './contrib/providers/copilotChatSessions/browser/copilotChatSessions.contribution.js';
+ import './contrib/providers/localChatSessions/browser/localChatSessions.contribution.js';
+ import './contrib/sessions/browser/sessions.contribution.js';
+ import './contrib/sessions/browser/views/sessionsListModelService.js';
+ import './services/agentHostFilter/browser/agentHostFilterService.js';
