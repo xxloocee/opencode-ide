@@ -458,9 +458,15 @@ function rewriteProductIcons() {
 		['code_150x150.png', 'resources/win32/code_150x150.png'],
 		['code.icns', 'resources/darwin/code.icns'],
 		['code.png', 'resources/linux/code.png'],
+		['code.xpm', 'resources/linux/rpm/code.xpm'],
 		['favicon.ico', 'resources/server/favicon.ico'],
 		['code-192.png', 'resources/server/code-192.png'],
 		['code-512.png', 'resources/server/code-512.png'],
+		['code-icon.svg', 'src/vs/workbench/browser/media/code-icon.svg'],
+		['code-icon.svg', 'src/vs/sessions/browser/media/vscode-icon.svg'],
+		['code-icon.svg', 'extensions/github-authentication/media/code-icon.svg'],
+		['favicon.ico', 'extensions/github-authentication/media/favicon.ico'],
+		['favicon.ico', 'extensions/microsoft-authentication/media/favicon.ico'],
 	];
 
 	for (const [sourceName, targetRel] of icons) {
@@ -468,8 +474,16 @@ function rewriteProductIcons() {
 		if (!fs.existsSync(source)) {
 			throw new Error(`Missing product icon asset: ${source}`);
 		}
-		fs.copyFileSync(source, path.join(root, targetRel));
+		const target = path.join(root, targetRel);
+		fs.mkdirSync(path.dirname(target), { recursive: true });
+		fs.copyFileSync(source, target);
 	}
+
+	const manifestFile = path.join(root, 'resources', 'server', 'manifest.json');
+	const manifest = JSON.parse(fs.readFileSync(manifestFile, 'utf8'));
+	manifest.name = 'OpenCode IDE';
+	manifest.short_name = 'OpenCode IDE';
+	fs.writeFileSync(manifestFile, JSON.stringify(manifest, null, '\t') + '\n');
 
 	console.log('[sanitize] rewrite-product-icons');
 }

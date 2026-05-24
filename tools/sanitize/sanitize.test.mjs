@@ -196,6 +196,33 @@ test('verify clean-full rejects welcome page as startup editor default', () => {
 	assert.match(result.stderr + result.stdout, /startupEditorDefault/);
 });
 
+test('apply clean-full rewrites product icons used by packaging and workbench UI', () => {
+	const root = makeFixtureRoot({ includeCoreWorkbenchChatEntry: true, includeUpstreamProductIcons: true });
+
+	const result = runNode(applyScript, `--root=${root}`, '--profile=clean-full');
+
+	assert.equal(result.status, 0, result.stderr + result.stdout);
+	assert.deepEqual(JSON.parse(fs.readFileSync(path.join(root, 'resources', 'server', 'manifest.json'), 'utf8')), {
+		name: 'OpenCode IDE',
+		short_name: 'OpenCode IDE',
+		icons: []
+	});
+	assertProductIconEquals(root, 'code-icon.svg', 'src/vs/workbench/browser/media/code-icon.svg');
+	assertProductIconEquals(root, 'code-icon.svg', 'src/vs/sessions/browser/media/vscode-icon.svg');
+	assertProductIconEquals(root, 'code.xpm', 'resources/linux/rpm/code.xpm');
+	assertProductIconEquals(root, 'favicon.ico', 'extensions/github-authentication/media/favicon.ico');
+	assertProductIconEquals(root, 'favicon.ico', 'extensions/microsoft-authentication/media/favicon.ico');
+});
+
+test('verify clean-full rejects upstream product icons and PWA branding', () => {
+	const root = makeFixtureRoot({ includeCoreWorkbenchChatEntry: true, includeUpstreamProductIcons: true });
+
+	const result = runNode(verifyScript, `--root=${root}`, '--profile=clean-full');
+
+	assert.notEqual(result.status, 0);
+	assert.match(result.stderr + result.stdout, /productIcon/);
+});
+
 test('verify clean-full rejects OpenCode dev launcher without official extension disables', () => {
 	const root = makeFixtureRoot({ includeCoreWorkbenchChatEntry: true, includeOfficialExtensionLauncherDisables: false });
 
@@ -230,7 +257,7 @@ function makeFixtureRoot(options = {}) {
 	});
 	writeJson(path.join(root, 'config', 'sanitize', 'clean-full.json'), {
 		name: 'clean-full',
-		steps: ['rewrite-product', 'rewrite-package', 'rewrite-build-copilot', 'rewrite-build-auth', 'rewrite-telemetry-defaults', 'apply-overlays', 'apply-patches', 'rewrite-branding-text', 'rewrite-welcome-startup-defaults', 'rewrite-packaging', 'verify'],
+		steps: ['rewrite-product', 'rewrite-package', 'rewrite-build-copilot', 'rewrite-build-auth', 'rewrite-telemetry-defaults', 'apply-overlays', 'apply-patches', 'rewrite-branding-text', 'rewrite-welcome-startup-defaults', 'rewrite-product-icons', 'rewrite-packaging', 'verify'],
 		verifyChecks: [
 			'rewrite-workbench-chat-entries',
 			'rewrite-workbench-account-entries',
@@ -383,6 +410,12 @@ function makeFixtureRoot(options = {}) {
 	writeText(path.join(root, 'resources', 'linux', 'debian', 'postinst.template'), 'OpenCode IDE packages do not configure any external apt repository.\n');
 	writeText(path.join(root, 'resources', 'linux', 'rpm', 'code.spec.template'), 'Vendor:   OpenCode IDE\n');
 	writeText(path.join(root, 'build', 'win32', 'code.iss'), 'AppPublisher=OpenCode IDE\n');
+	writeJson(path.join(root, 'resources', 'server', 'manifest.json'), {
+		name: options.includeUpstreamProductIcons ? 'Code - OSS' : 'OpenCode IDE',
+		short_name: options.includeUpstreamProductIcons ? 'Code - OSS' : 'OpenCode IDE',
+		icons: []
+	});
+	writeProductIconFixtures(root, options.includeUpstreamProductIcons);
 	writeText(path.join(root, 'build', 'win32', 'i18n', 'messages.en.isl'), 'UpdatingVisualStudioCode=OpenCode IDE is updating...\n');
 	writeText(path.join(root, 'src', 'vs', 'workbench', 'contrib', 'extensions', 'browser', 'extensions.contribution.ts'), 'const text = "OpenCode IDE extensions";\n');
 	writeText(path.join(root, 'src', 'vs', 'workbench', 'contrib', 'extensions', 'browser', 'extensionsActions.ts'), 'const text = "OpenCode IDE extensions";\n');
@@ -409,6 +442,42 @@ function makeFixtureRoot(options = {}) {
 
 function writeJson(file, value) {
 	writeText(file, JSON.stringify(value, null, '\t') + '\n');
+}
+
+function writeProductIconFixtures(root, useUpstreamPlaceholders = false) {
+	const iconRoot = path.join(repoRoot, 'config', 'sanitize', 'assets', 'product-icons');
+	const icons = [
+		['code.ico', 'resources/win32/code.ico'],
+		['code_70x70.png', 'resources/win32/code_70x70.png'],
+		['code_150x150.png', 'resources/win32/code_150x150.png'],
+		['code.icns', 'resources/darwin/code.icns'],
+		['code.png', 'resources/linux/code.png'],
+		['code.xpm', 'resources/linux/rpm/code.xpm'],
+		['favicon.ico', 'resources/server/favicon.ico'],
+		['code-192.png', 'resources/server/code-192.png'],
+		['code-512.png', 'resources/server/code-512.png'],
+		['code-icon.svg', 'src/vs/workbench/browser/media/code-icon.svg'],
+		['code-icon.svg', 'src/vs/sessions/browser/media/vscode-icon.svg'],
+		['code-icon.svg', 'extensions/github-authentication/media/code-icon.svg'],
+		['favicon.ico', 'extensions/github-authentication/media/favicon.ico'],
+		['favicon.ico', 'extensions/microsoft-authentication/media/favicon.ico'],
+	];
+
+	for (const [sourceName, targetRel] of icons) {
+		const target = path.join(root, targetRel);
+		fs.mkdirSync(path.dirname(target), { recursive: true });
+		if (useUpstreamPlaceholders) {
+			fs.writeFileSync(target, 'upstream icon placeholder\n');
+		} else {
+			fs.copyFileSync(path.join(iconRoot, sourceName), target);
+		}
+	}
+}
+
+function assertProductIconEquals(root, sourceName, targetRel) {
+	const source = path.join(repoRoot, 'config', 'sanitize', 'assets', 'product-icons', sourceName);
+	const target = path.join(root, targetRel);
+	assert.equal(fs.readFileSync(target).equals(fs.readFileSync(source)), true, targetRel);
 }
 
 function writeText(file, text) {
