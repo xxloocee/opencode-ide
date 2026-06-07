@@ -28,6 +28,7 @@ import {
 } from '../../../../platform/opencode/common/opencodeHost.js';
 import { IOpenCodeHostWindowClient, OpenCodeHostChannelClient } from '../../../../platform/opencode/common/opencodeHostIpc.js';
 import { INativeWorkbenchEnvironmentService } from '../../../services/environment/electron-browser/environmentService.js';
+import { IAIExtensionsWorkbenchService } from '../../aiExtensions/common/aiExtensions.js';
 
 export class OpenCodeHostService extends Disposable implements IOpenCodeHostService {
 	declare readonly _serviceBrand: undefined;
@@ -46,6 +47,7 @@ export class OpenCodeHostService extends Disposable implements IOpenCodeHostServ
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@ILogService private readonly logService: ILogService,
 		@INativeWorkbenchEnvironmentService private readonly environmentService: INativeWorkbenchEnvironmentService,
+		@IAIExtensionsWorkbenchService private readonly aiExtensionsService: IAIExtensionsWorkbenchService,
 	) {
 		super();
 
@@ -106,7 +108,19 @@ export class OpenCodeHostService extends Disposable implements IOpenCodeHostServ
 		const uiPackage = this.configurationService.getValue<string>(SessionsOpenCodeUiPackageSettingId)?.trim() || undefined;
 		const enableGenerativeUiCsp = this.configurationService.getValue<boolean>(SessionsOpenCodeEnableGenerativeUiCspSettingId) ?? true;
 		const cwd = configuredCwd || this.workspaceCwd();
-		return { url: OpenCodeDefaultUrl, command, cwd, uiPackage, enableGenerativeUiCsp };
+		const overlay = await this.aiExtensionsService.sync().catch(err => {
+			this.logService.warn('[OpenCodeHost] Failed to sync AI Extensions overlay', err);
+			return undefined;
+		});
+		return {
+			url: OpenCodeDefaultUrl,
+			command,
+			cwd,
+			uiPackage,
+			configDir: overlay?.configDir.fsPath,
+			configFile: overlay?.configFile.fsPath,
+			enableGenerativeUiCsp,
+		};
 	}
 
 	private async bundledCommand(): Promise<string | undefined> {

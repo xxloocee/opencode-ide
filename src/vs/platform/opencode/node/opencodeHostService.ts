@@ -146,7 +146,7 @@ class OpenCodeWindowHost extends Disposable {
 		}
 
 		const launch = await this.resolveLaunch(input);
-		const configDir = await this.prepareBundledGenerativeUiConfigDir(input.uiPackage);
+		const configDir = await this.prepareOpenCodeConfigDir(input.uiPackage, input.configDir);
 		this.stopping = false;
 		this.setState({
 			phase: OpenCodeHostPhase.Starting,
@@ -171,6 +171,7 @@ class OpenCodeWindowHost extends Disposable {
 				ERGOUZICODE_OPENCODE_REGISTRY: this.registry.location,
 				...(input.uiPackage ? { OPENCODE_UI_PACKAGE: input.uiPackage } : {}),
 				...(configDir ? { OPENCODE_CONFIG_DIR: configDir } : {}),
+				...(input.configFile ? { OPENCODE_CONFIG: input.configFile } : {}),
 				...(input.uiPackage === 'app-ide' && input.enableGenerativeUiCsp ? { OPENCODE_ENABLE_GENERATIVE_UI_CSP: '1' } : {}),
 			},
 			shell: true,
@@ -292,14 +293,14 @@ class OpenCodeWindowHost extends Disposable {
 		};
 	}
 
-	private async prepareBundledGenerativeUiConfigDir(uiPackage: string | undefined): Promise<string | undefined> {
+	private async prepareOpenCodeConfigDir(uiPackage: string | undefined, overlayDir: string | undefined): Promise<string | undefined> {
 		if (uiPackage !== 'app-ide') {
-			return undefined;
+			return overlayDir;
 		}
 
 		const sourceDir = join(this.environmentService.appRoot, 'opencode', 'bundles', 'generative-ui');
 		if (!fs.existsSync(join(sourceDir, 'package.json'))) {
-			return undefined;
+			return overlayDir;
 		}
 
 		const targetDir = join(this.environmentService.userDataPath, 'opencode', 'bundles', `generative-ui-window-${this.windowId}`);
@@ -307,10 +308,13 @@ class OpenCodeWindowHost extends Disposable {
 			await fs.promises.rm(targetDir, { recursive: true, force: true });
 			await fs.promises.mkdir(dirname(targetDir), { recursive: true });
 			await fs.promises.cp(sourceDir, targetDir, { recursive: true, force: true });
+			if (overlayDir && fs.existsSync(overlayDir)) {
+				await fs.promises.cp(overlayDir, targetDir, { recursive: true, force: true });
+			}
 			return targetDir;
 		} catch (err) {
 			this.logService.warn(`[OpenCodeHost:${this.windowId}] Failed to prepare generative UI bundle`, err);
-			return undefined;
+			return overlayDir;
 		}
 	}
 }

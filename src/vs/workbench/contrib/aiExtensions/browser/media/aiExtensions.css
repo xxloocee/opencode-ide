@@ -1,0 +1,612 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.ai-extensions-view-body {
+	box-sizing: border-box;
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+	height: 100%;
+	min-height: 0;
+	overflow: hidden;
+	padding: 10px 8px;
+}
+
+.ai-extensions-header {
+	align-items: center;
+	display: flex;
+	gap: 8px;
+	flex: 0 0 auto;
+	min-width: 0;
+	padding: 0 2px 2px;
+}
+
+.ai-extensions-summary {
+	color: var(--vscode-descriptionForeground);
+	flex: 1 1 auto;
+	font-size: 12px;
+	line-height: 17px;
+	min-width: 0;
+}
+
+.ai-extensions-refresh {
+	background: var(--vscode-button-secondaryBackground);
+	border: 0;
+	border-radius: 3px;
+	color: var(--vscode-button-secondaryForeground);
+	cursor: pointer;
+	flex: 0 0 auto;
+	font: inherit;
+	height: 24px;
+	padding: 0 8px;
+}
+
+.ai-extensions-refresh:hover {
+	background: var(--vscode-button-secondaryHoverBackground);
+}
+
+.ai-extensions-refresh:disabled {
+	cursor: default;
+	opacity: 0.6;
+}
+
+.ai-extensions-tree {
+	flex: 1 1 auto;
+	min-height: 0;
+	overflow: overlay;
+	scrollbar-color: var(--vscode-scrollbarSlider-background) transparent;
+	scrollbar-width: thin;
+}
+
+.ai-extensions-tree::-webkit-scrollbar,
+.ai-extension-editor::-webkit-scrollbar {
+	height: 8px;
+	width: 8px;
+}
+
+.ai-extensions-tree::-webkit-scrollbar-track,
+.ai-extension-editor::-webkit-scrollbar-track {
+	background: transparent;
+}
+
+.ai-extensions-tree::-webkit-scrollbar-thumb,
+.ai-extension-editor::-webkit-scrollbar-thumb {
+	background-color: var(--vscode-scrollbarSlider-background);
+	border: 2px solid transparent;
+	background-clip: padding-box;
+}
+
+.ai-extensions-tree::-webkit-scrollbar-thumb:hover,
+.ai-extension-editor::-webkit-scrollbar-thumb:hover {
+	background-color: var(--vscode-scrollbarSlider-hoverBackground);
+}
+
+.ai-extensions-tree::-webkit-scrollbar-thumb:active,
+.ai-extension-editor::-webkit-scrollbar-thumb:active {
+	background-color: var(--vscode-scrollbarSlider-activeBackground);
+}
+
+.ai-extensions-tree::-webkit-scrollbar-corner,
+.ai-extension-editor::-webkit-scrollbar-corner {
+	background: transparent;
+}
+
+.ai-extensions-tree-node {
+	min-width: 0;
+}
+
+.ai-extensions-search {
+	background: var(--vscode-input-background);
+	border: 1px solid var(--vscode-input-border, transparent);
+	border-radius: 2px;
+	box-sizing: border-box;
+	color: var(--vscode-input-foreground);
+	flex: 0 0 auto;
+	font: inherit;
+	height: 26px;
+	outline: none;
+	padding: 2px 7px;
+	width: 100%;
+}
+
+.ai-extensions-search::placeholder {
+	color: var(--vscode-input-placeholderForeground);
+}
+
+.ai-extensions-search:focus {
+	border-color: var(--vscode-focusBorder);
+}
+
+.ai-extensions-tree-row,
+.ai-extensions-list-item {
+	background: transparent;
+	border: 0;
+	box-sizing: border-box;
+	color: var(--vscode-foreground);
+	cursor: pointer;
+	font: inherit;
+	min-width: 0;
+	text-align: left;
+	width: 100%;
+}
+
+.ai-extensions-tree-row {
+	align-items: center;
+	border-radius: 3px;
+	display: grid;
+	gap: 5px;
+	grid-template-columns: 16px 16px minmax(0, 1fr) auto;
+	height: 28px;
+	padding: 0 6px 0 2px;
+}
+
+.ai-extensions-source-row {
+	grid-template-columns: 16px minmax(0, 1fr) auto;
+	padding-left: 20px;
+}
+
+.ai-extensions-tree-row:hover,
+.ai-extensions-list-item:hover {
+	background: var(--vscode-list-hoverBackground);
+	color: var(--vscode-list-hoverForeground);
+}
+
+.ai-extensions-tree-row:focus-visible,
+.ai-extensions-list-item:focus-visible,
+.ai-extensions-list-action:focus-visible,
+.ai-extension-editor-action:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+.ai-extensions-tree-row.expanded {
+	background: var(--vscode-list-inactiveSelectionBackground);
+}
+
+.ai-extensions-chevron {
+	color: var(--vscode-icon-foreground);
+	font-size: 14px;
+	height: 16px;
+	line-height: 16px;
+	text-align: center;
+	transition: transform 150ms ease;
+	width: 16px;
+}
+
+.ai-extensions-tree-row.expanded .ai-extensions-chevron {
+	transform: rotate(90deg);
+}
+
+.ai-extensions-tree-icon {
+	color: var(--vscode-icon-foreground);
+	font-size: 14px;
+	height: 16px;
+	line-height: 16px;
+	text-align: center;
+	width: 16px;
+}
+
+.ai-extensions-tree-label {
+	font-size: 12px;
+	font-weight: 600;
+	line-height: 20px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.ai-extensions-tree-count {
+	color: var(--vscode-descriptionForeground);
+	font-size: 11px;
+	line-height: 18px;
+	min-width: 18px;
+	text-align: right;
+}
+
+.ai-extensions-source-group,
+.ai-extensions-list {
+	margin-top: 2px;
+}
+
+.ai-extensions-list {
+	display: flex;
+	flex-direction: column;
+	gap: 1px;
+	padding: 2px 0 5px 22px;
+}
+
+.ai-extensions-list-item {
+	border-radius: 3px;
+	display: grid;
+	gap: 9px;
+	grid-template-columns: 42px minmax(0, 1fr);
+	min-height: 80px;
+	padding: 7px 7px;
+}
+
+.ai-extensions-list-item.selected {
+	background: var(--vscode-list-activeSelectionBackground);
+	color: var(--vscode-list-activeSelectionForeground);
+}
+
+.ai-extensions-list-icon {
+	align-items: center;
+	background: var(--vscode-badge-background);
+	border-radius: 4px;
+	color: var(--vscode-badge-foreground);
+	display: flex;
+	font-size: 22px;
+	height: 42px;
+	justify-content: center;
+	margin-top: 1px;
+	width: 42px;
+}
+
+.ai-extensions-list-icon-image {
+	border-radius: 4px;
+	display: block;
+	height: 100%;
+	object-fit: cover;
+	width: 100%;
+}
+
+.ai-extensions-list-content {
+	display: flex;
+	flex-direction: column;
+	justify-content: center;
+	min-width: 0;
+}
+
+.ai-extensions-list-title-row,
+.ai-extensions-list-footer {
+	align-items: center;
+	display: flex;
+	gap: 8px;
+	min-width: 0;
+}
+
+.ai-extensions-list-item-title {
+	flex: 1 1 auto;
+	font-size: 13px;
+	font-weight: 600;
+	line-height: 18px;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.ai-extensions-list-description,
+.ai-extensions-list-source,
+.ai-extensions-empty {
+	color: var(--vscode-descriptionForeground);
+	font-size: 12px;
+	line-height: 1.4;
+}
+
+.ai-extensions-list-item.selected .ai-extensions-list-description,
+.ai-extensions-list-item.selected .ai-extensions-list-source,
+.ai-extensions-list-item.selected .ai-extensions-list-stat {
+	color: var(--vscode-list-activeSelectionForeground);
+}
+
+.ai-extensions-list-description {
+	display: -webkit-box;
+	margin-top: 2px;
+	-webkit-box-orient: vertical;
+	-webkit-line-clamp: 2;
+	overflow: hidden;
+}
+
+.ai-extensions-list-source {
+	flex: 1 1 auto;
+	margin-top: 4px;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.ai-extensions-list-action {
+	background: var(--vscode-button-background);
+	border: 1px solid var(--vscode-button-border, transparent);
+	border-radius: 4px;
+	color: var(--vscode-button-foreground);
+	cursor: pointer;
+	flex: 0 0 auto;
+	font: inherit;
+	font-size: 11px;
+	height: 20px;
+	line-height: 18px;
+	margin-top: 4px;
+	min-width: 42px;
+	padding: 0 7px;
+	text-align: center;
+}
+
+.ai-extensions-list-action:hover {
+	background: var(--vscode-button-hoverBackground);
+}
+
+.ai-extensions-list-action:disabled {
+	cursor: default;
+	opacity: 0.6;
+}
+
+.ai-extensions-list-footer {
+	margin-top: 4px;
+}
+
+.ai-extensions-list-stat {
+	align-items: center;
+	color: var(--vscode-descriptionForeground);
+	flex: 0 0 auto;
+	display: flex;
+	font-size: 11px;
+	gap: 3px;
+	height: 16px;
+	justify-content: flex-end;
+	line-height: 16px;
+	min-width: 0;
+	white-space: nowrap;
+}
+
+.ai-extensions-list-stat .codicon {
+	font-size: 13px;
+}
+
+.ai-extensions-list-stat.stars .codicon {
+	color: var(--vscode-charts-yellow);
+}
+
+.ai-extensions-load-more {
+	background: transparent;
+	border: 0;
+	border-radius: 3px;
+	color: var(--vscode-textLink-foreground);
+	cursor: pointer;
+	font: inherit;
+	font-size: 12px;
+	height: 26px;
+	margin: 3px 7px 0;
+	padding: 0 8px;
+	text-align: left;
+}
+
+.ai-extensions-load-more:hover {
+	background: var(--vscode-list-hoverBackground);
+}
+
+.ai-extensions-empty {
+	padding: 14px 10px;
+}
+
+.ai-extension-editor {
+	background: var(--vscode-editor-background);
+	box-sizing: border-box;
+	color: var(--vscode-foreground);
+	height: 100%;
+	overflow: overlay;
+	padding: 28px 36px 48px;
+	scrollbar-color: var(--vscode-scrollbarSlider-background) transparent;
+	scrollbar-width: thin;
+}
+
+.ai-extension-editor:focus {
+	outline: none;
+}
+
+.ai-extension-editor-header {
+	align-items: flex-start;
+	display: flex;
+	gap: 20px;
+	max-width: 920px;
+}
+
+.ai-extension-editor.narrow .ai-extension-editor-header {
+	gap: 14px;
+}
+
+.ai-extension-editor-icon {
+	align-items: center;
+	background: var(--vscode-badge-background);
+	border-radius: 6px;
+	color: var(--vscode-badge-foreground);
+	display: flex;
+	flex: 0 0 auto;
+	font-size: 42px;
+	height: 82px;
+	justify-content: center;
+	width: 82px;
+}
+
+.ai-extension-editor-icon-image {
+	border-radius: 6px;
+	display: block;
+	height: 100%;
+	object-fit: cover;
+	width: 100%;
+}
+
+.ai-extension-editor.narrow .ai-extension-editor-icon {
+	font-size: 30px;
+	height: 58px;
+	width: 58px;
+}
+
+.ai-extension-editor-title-area {
+	min-width: 0;
+}
+
+.ai-extension-editor-title {
+	font-size: 26px;
+	font-weight: 600;
+	line-height: 34px;
+	margin: 0;
+	overflow-wrap: anywhere;
+}
+
+.ai-extension-editor-meta,
+.ai-extension-editor-section-body,
+.ai-extension-editor-status-label,
+.ai-extension-editor-action-note {
+	color: var(--vscode-descriptionForeground);
+	font-size: 12px;
+	line-height: 1.45;
+}
+
+.ai-extension-editor-meta {
+	margin-top: 7px;
+}
+
+.ai-extension-editor-actions {
+	align-items: center;
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+	margin-top: 18px;
+}
+
+.ai-extension-editor-action {
+	background: var(--vscode-button-background);
+	border: 1px solid var(--vscode-button-border, transparent);
+	border-radius: 4px;
+	color: var(--vscode-button-foreground);
+	cursor: pointer;
+	font: inherit;
+	font-size: 12px;
+	height: 28px;
+	line-height: 24px;
+	min-width: 58px;
+	padding: 1px 11px;
+}
+
+.ai-extension-editor-action.secondary {
+	background: var(--vscode-button-secondaryBackground);
+	color: var(--vscode-button-secondaryForeground);
+}
+
+.ai-extension-editor-action:hover {
+	background: var(--vscode-button-hoverBackground);
+}
+
+.ai-extension-editor-action:disabled {
+	cursor: default;
+	opacity: 0.6;
+}
+
+.ai-extension-editor-body {
+	max-width: 920px;
+	padding-top: 28px;
+}
+
+.ai-extension-editor-overview {
+	display: grid;
+	gap: 10px;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	max-width: 520px;
+}
+
+.ai-extension-editor-status-item {
+	background: var(--vscode-editorWidget-background);
+	border-radius: 4px;
+	box-sizing: border-box;
+	min-height: 48px;
+	padding: 8px 10px;
+}
+
+.ai-extension-editor-status-value {
+	color: var(--vscode-foreground);
+	font-size: 13px;
+	font-weight: 600;
+	line-height: 19px;
+	margin-top: 2px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.ai-extension-editor-section {
+	border-top: 1px solid var(--vscode-panel-border);
+	margin-top: 28px;
+	padding-top: 18px;
+}
+
+.ai-extension-editor-section.highlight {
+	background: var(--vscode-editorWidget-background);
+	border: 1px solid var(--vscode-panel-border);
+	border-left: 3px solid var(--vscode-focusBorder);
+	border-radius: 4px;
+	margin-top: 22px;
+	padding: 13px 14px;
+}
+
+.ai-extension-editor-section-title {
+	font-size: 13px;
+	font-weight: 600;
+	line-height: 20px;
+	margin: 0;
+}
+
+.ai-extension-editor-section-body {
+	margin-top: 5px;
+	overflow-wrap: anywhere;
+	white-space: pre-wrap;
+}
+
+.ai-extension-editor-metadata-grid {
+	display: flex;
+	flex-direction: column;
+	gap: 1px;
+	margin-top: 9px;
+}
+
+.ai-extension-editor-metadata-item {
+	border-top: 1px solid var(--vscode-panel-border);
+	display: grid;
+	grid-template-columns: 100px 1fr;
+	gap: 4px 10px;
+	min-width: 0;
+	padding: 6px 0;
+}
+
+.ai-extension-editor-metadata-key {
+	color: var(--vscode-descriptionForeground);
+	font-size: 12px;
+	line-height: 17px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.ai-extension-editor-metadata-value {
+	color: var(--vscode-foreground);
+	font-size: 12px;
+	line-height: 18px;
+	min-width: 0;
+	overflow-wrap: anywhere;
+}
+
+.ai-extension-editor-runtime-refresh {
+	color: var(--vscode-notificationsWarningIcon-foreground);
+	font-size: 12px;
+	line-height: 1.45;
+	margin-top: 18px;
+}
+
+@media (max-width: 640px) {
+	.ai-extension-editor {
+		padding: 20px 18px 36px;
+	}
+
+	.ai-extension-editor-overview {
+		grid-template-columns: 1fr;
+		max-width: none;
+	}
+
+	.ai-extension-editor-metadata-item {
+		grid-template-columns: 80px 1fr;
+	}
+}

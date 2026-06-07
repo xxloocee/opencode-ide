@@ -121,6 +121,46 @@ export interface OpenCodeThemeDto {
 	readonly mode: OpenCodeThemeMode;
 }
 
+export type OpenCodeAIExtensionType = 'skill' | 'plugin' | 'mcp';
+export type OpenCodeAIExtensionSource = 'codex' | 'claude' | 'opencode';
+export type OpenCodeAIExtensionInstallState = 'notInstalled' | 'installed' | 'viewOnly' | 'unsupported';
+export type OpenCodeAIExtensionInstallScope = 'profile' | 'external';
+export type OpenCodeAIExtensionUpdateState = 'unknown' | 'latest' | 'available';
+export type OpenCodeAIExtensionSyncStatus = 'notSynced' | 'pending' | 'success' | 'failed';
+
+export interface OpenCodeAIExtensionDto {
+	readonly id: string;
+	readonly name: string;
+	readonly version?: string;
+	readonly source: OpenCodeAIExtensionSource;
+	readonly sourceLabel: string;
+	readonly type: OpenCodeAIExtensionType;
+	readonly description: string;
+	readonly risk: string;
+	readonly installable: boolean;
+	readonly installState: OpenCodeAIExtensionInstallState;
+	readonly installedByIde: boolean;
+	readonly enabled: boolean;
+	readonly trusted?: boolean;
+	readonly canEnable?: boolean;
+	readonly installScope: OpenCodeAIExtensionInstallScope;
+	readonly updateState: OpenCodeAIExtensionUpdateState;
+	readonly syncStatus: OpenCodeAIExtensionSyncStatus;
+	readonly syncError?: string;
+	readonly lastSyncedAt?: number;
+	readonly needsRuntimeRefresh: boolean;
+	readonly detail?: string;
+}
+
+export interface OpenCodeAIExtensionsListResult {
+	readonly items: readonly OpenCodeAIExtensionDto[];
+}
+
+export interface OpenCodeAIExtensionsSyncResult {
+	readonly syncedAt: number;
+	readonly requiresRuntimeRefresh: boolean;
+}
+
 /**
  * Workspace + editor snapshot used by context.change.
  * Theme is notified independently via theme.change.
@@ -263,6 +303,27 @@ export type OpenCodeClipboardWriteTextRequest = {
 	};
 };
 
+export type OpenCodeAIExtensionsListRequest = {
+	readonly source: 'opencode-bridge';
+	readonly id: string;
+	readonly method: 'aiExtensions.installed.list';
+};
+
+export type OpenCodeAIExtensionActionRequest = {
+	readonly source: 'opencode-bridge';
+	readonly id: string;
+	readonly method: 'aiExtensions.uninstall' | 'aiExtensions.enable' | 'aiExtensions.disable' | 'aiExtensions.trust' | 'aiExtensions.update';
+	readonly params: {
+		readonly id: string;
+	};
+};
+
+export type OpenCodeAIExtensionsSyncRequest = {
+	readonly source: 'opencode-bridge';
+	readonly id: string;
+	readonly method: 'aiExtensions.sync';
+};
+
 export type OpenCodeBridgeRequest =
 	| OpenCodeContextGetRequest
 	| OpenCodeCurrentSessionGetRequest
@@ -275,7 +336,10 @@ export type OpenCodeBridgeRequest =
 	| OpenCodeWorkspaceDiagnosticsGetRequest
 	| OpenCodeLastTaskGetRequest
 	| OpenCodeLastTerminalGetRequest
-	| OpenCodeClipboardWriteTextRequest;
+	| OpenCodeClipboardWriteTextRequest
+	| OpenCodeAIExtensionsListRequest
+	| OpenCodeAIExtensionActionRequest
+	| OpenCodeAIExtensionsSyncRequest;
 
 export type OpenCodeHostResponse = {
 	readonly source: 'opencode-host';
@@ -355,6 +419,12 @@ export function isOpenCodeBridgeRequest(value: unknown): value is OpenCodeBridge
 	if (data.method === 'clipboard.writeText') {
 		return isClipboardWriteTextParams(data.params);
 	}
+	if (data.method === 'aiExtensions.installed.list' || data.method === 'aiExtensions.sync') {
+		return data.params === undefined;
+	}
+	if (data.method === 'aiExtensions.uninstall' || data.method === 'aiExtensions.enable' || data.method === 'aiExtensions.disable' || data.method === 'aiExtensions.trust' || data.method === 'aiExtensions.update') {
+		return isAIExtensionActionParams(data.params);
+	}
 	return false;
 }
 
@@ -376,6 +446,14 @@ function isClipboardWriteTextParams(value: unknown): value is OpenCodeClipboardW
 	}
 	const params = value as { text?: unknown };
 	return typeof params.text === 'string';
+}
+
+function isAIExtensionActionParams(value: unknown): value is OpenCodeAIExtensionActionRequest['params'] {
+	if (!value || typeof value !== 'object') {
+		return false;
+	}
+	const params = value as { id?: unknown };
+	return typeof params.id === 'string' && params.id.length > 0;
 }
 
 function isPositiveInt(value: unknown): value is number {

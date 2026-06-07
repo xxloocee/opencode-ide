@@ -70,8 +70,11 @@ import {
 	OpenCodeWorkspaceDiagnosticsDto,
 	OpenCodeWorkspaceDiagnosticsGetResult,
 	OpenCodeWorkspaceFolderDto,
+	OpenCodeAIExtensionDto,
+	OpenCodeAIExtensionsSyncResult,
 } from './opencodeProtocol.js';
 import { OpenCodeViewId } from './views/opencodeView.js';
+import { IAIExtensionDescriptor, IAIExtensionsWorkbenchService } from '../../aiExtensions/common/aiExtensions.js';
 
 const OpenCodeSelectionCommandId = 'workbench.action.openCode.addSelection';
 const OpenCodeCurrentSessionStorageKey = 'opencode.currentSession';
@@ -110,6 +113,7 @@ class OpenCodeWebviewContribution extends Disposable implements IWorkbenchContri
 		@ITextFileService private readonly textFiles: ITextFileService,
 		@ITaskService private readonly tasks: ITaskService,
 		@ITerminalService private readonly terminals: ITerminalService,
+		@IAIExtensionsWorkbenchService private readonly aiExtensionsService: IAIExtensionsWorkbenchService,
 		@ILifecycleService lifecycle: ILifecycleService,
 	) {
 		super();
@@ -377,6 +381,34 @@ class OpenCodeWebviewContribution extends Disposable implements IWorkbenchContri
 			return this.clipboardService.writeText(value.params.text);
 		}
 
+		if (value.method === 'aiExtensions.installed.list') {
+			return this.aiExtensionsService.installed().then(items => ({ items: items.map(toAIExtensionDto) }));
+		}
+
+		if (value.method === 'aiExtensions.uninstall') {
+			return this.aiExtensionsService.uninstall(value.params.id);
+		}
+
+		if (value.method === 'aiExtensions.enable') {
+			return this.aiExtensionsService.enable(value.params.id).then(toAIExtensionDto);
+		}
+
+		if (value.method === 'aiExtensions.disable') {
+			return this.aiExtensionsService.disable(value.params.id).then(toAIExtensionDto);
+		}
+
+		if (value.method === 'aiExtensions.trust') {
+			return this.aiExtensionsService.trust(value.params.id).then(toAIExtensionDto);
+		}
+
+		if (value.method === 'aiExtensions.update') {
+			return this.aiExtensionsService.update(value.params.id).then(toAIExtensionDto);
+		}
+
+		if (value.method === 'aiExtensions.sync') {
+			return this.syncAIExtensions();
+		}
+
 		if (value.method === 'editor.open') {
 			validateEditorOpenParams(value.params);
 			return this.edit(value.params);
@@ -387,7 +419,7 @@ class OpenCodeWebviewContribution extends Disposable implements IWorkbenchContri
 			return this.reveal(value.params);
 		}
 
-		const unsupported: never = value;
+		const unsupported = value;
 		throw new Error(`Unsupported OpenCode bridge request: ${JSON.stringify(unsupported)}`);
 	}
 
@@ -395,6 +427,42 @@ class OpenCodeWebviewContribution extends Disposable implements IWorkbenchContri
 		return {
 			sessionId: this.storage.get(this.currentSessionStorageKey(), StorageScope.WORKSPACE) ?? null,
 		};
+	}
+
+	private async syncAIExtensions(): Promise<OpenCodeAIExtensionsSyncResult> {
+		const overlay = await this.aiExtensionsService.sync();
+		if (this.host.state.phase !== OpenCodeHostPhase.Running || !this.host.state.owned) {
+			return toAIExtensionsSyncResult(overlay);
+		}
+
+		try {
+			await this.host.stop();
+			const state = await this.host.start();
+			if (state.phase === OpenCodeHostPhase.Running) {
+				this.reloadOpenCodeViewAfterBridgeResponse(state.url);
+			}
+			return {
+				...toAIExtensionsSyncResult(overlay),
+				requiresRuntimeRefresh: state.phase !== OpenCodeHostPhase.Running,
+			};
+		} catch (err) {
+			this.log.warn('[OpenCodeWebview] Failed to restart OpenCode runtime after AI Extensions sync', err);
+			return toAIExtensionsSyncResult(overlay);
+		}
+	}
+
+	private reloadOpenCodeViewAfterBridgeResponse(url: string | undefined): void {
+		const view = this.view;
+		if (!view || !url) {
+			return;
+		}
+		setTimeout(() => {
+			if (this.view !== view) {
+				return;
+			}
+			this.lastContextSnapshot = undefined;
+			view.webview.setHtml(this.page(url));
+		}, 250);
 	}
 
 	private setCurrentSession(sessionId: string | null): void {
@@ -1211,6 +1279,45 @@ function isAbsolutePath(path: string): boolean {
 
 function snapshotContext(context: OpenCodeContextDto): string {
 	return JSON.stringify(context);
+}
+
+function toAIExtensionDto(item: IAIExtensionDescriptor): OpenCodeAIExtensionDto {
+	return {
+		id: item.id,
+		name: item.name,
+		version: item.version,
+		source: item.source,
+		sourceLabel: item.sourceLabel,
+		type: item.type,
+		description: item.description,
+		risk: item.risk,
+		installable: item.installable,
+		installState: item.installState,
+		installedByIde: item.installedByIde,
+		enabled: item.enabled,
+		trusted: item.trusted,
+		canEnable: canEnableAIExtension(item),
+		installScope: item.installScope,
+		updateState: item.updateState,
+		syncStatus: item.syncStatus,
+		syncError: item.syncError,
+		lastSyncedAt: item.lastSyncedAt,
+		needsRuntimeRefresh: item.needsRuntimeRefresh,
+		detail: item.detail,
+	};
+}
+
+function canEnableAIExtension(item: IAIExtensionDescriptor): boolean {
+	return item.installedByIde
+		&& item.trusted !== false
+		&& !(item.type === 'plugin' && (item.contributions.plugins ?? []).some(plugin => !!plugin.content || !!plugin.npm));
+}
+
+function toAIExtensionsSyncResult(overlay: { syncedAt: number; requiresRuntimeRefresh: boolean }): OpenCodeAIExtensionsSyncResult {
+	return {
+		syncedAt: overlay.syncedAt,
+		requiresRuntimeRefresh: overlay.requiresRuntimeRefresh,
+	};
 }
 
 function base64UrlEncode(value: string): string {

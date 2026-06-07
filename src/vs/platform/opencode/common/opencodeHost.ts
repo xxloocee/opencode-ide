@@ -34,6 +34,8 @@ export interface IOpenCodeHostLaunch {
 	readonly command?: string;
 	readonly cwd?: string;
 	readonly uiPackage?: string;
+	readonly configDir?: string;
+	readonly configFile?: string;
 	readonly enableGenerativeUiCsp?: boolean;
 }
 

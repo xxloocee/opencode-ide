@@ -148,6 +148,9 @@ import { LocalGitService } from '../../../platform/git/node/localGitService.js';
 import { IOpenCodeHostMainService, OPENCODE_HOST_CHANNEL } from '../../../platform/opencode/common/opencodeHost.js';
 import { OpenCodeHostChannel } from '../../../platform/opencode/common/opencodeHostIpc.js';
 import { OpenCodeHostMainService } from '../../../platform/opencode/node/opencodeHostService.js';
+import { AI_EXTENSIONS_MARKETPLACE_CHANNEL, IAIExtensionsMarketplaceService } from '../../../platform/aiExtensions/common/aiExtensionsMarketplace.js';
+import { AIExtensionsMarketplaceChannel } from '../../../platform/aiExtensions/common/aiExtensionsMarketplaceIpc.js';
+import { AIExtensionsMarketplaceMainService } from '../../../platform/aiExtensions/node/aiExtensionsMarketplaceService.js';
 
 class SharedProcessMain extends Disposable implements IClientConnectionFilter {
 
@@ -436,6 +439,9 @@ class SharedProcessMain extends Disposable implements IClientConnectionFilter {
 		// OpenCode Host
 		services.set(IOpenCodeHostMainService, new SyncDescriptor(OpenCodeHostMainService, undefined, true));
 
+		// AI Extensions Marketplace
+		services.set(IAIExtensionsMarketplaceService, new SyncDescriptor(AIExtensionsMarketplaceMainService, undefined, true));
+
 		return new InstantiationService(services);
 	}
 
@@ -531,6 +537,10 @@ class SharedProcessMain extends Disposable implements IClientConnectionFilter {
 		// OpenCode Host
 		const openCodeHostChannel = new OpenCodeHostChannel(accessor.get(IOpenCodeHostMainService));
 		this.server.registerChannel(OPENCODE_HOST_CHANNEL, openCodeHostChannel);
+
+		// AI Extensions Marketplace
+		const aiExtensionsMarketplaceChannel = new AIExtensionsMarketplaceChannel(accessor.get(IAIExtensionsMarketplaceService));
+		this.server.registerChannel(AI_EXTENSIONS_MARKETPLACE_CHANNEL, aiExtensionsMarketplaceChannel);
 	}
 
 	private registerErrorHandler(logService: ILogService): void {

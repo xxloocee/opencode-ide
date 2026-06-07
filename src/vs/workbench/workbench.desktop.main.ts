@@ -182,6 +182,8 @@ import './contrib/remoteTunnel/electron-browser/remoteTunnel.contribution.js';
 
 // Chat
 import './contrib/chat/electron-browser/chat.contribution.js';
+import '../platform/aiExtensions/electron-browser/aiExtensionsMarketplaceService.js';
+import './contrib/aiExtensions/browser/aiExtensions.contribution.js';
 import './contrib/opencode/browser/opencode.contribution.js';
 import './contrib/opencode/browser/opencodeWebview.contribution.js';
 
