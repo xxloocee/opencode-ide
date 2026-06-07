@@ -49,6 +49,7 @@ import {
 	OpenCodeBridgeRequest,
 	OpenCodeContextDto,
 	OpenCodeCurrentSessionGetResult,
+	OpenCodeHostCapabilitiesDto,
 	OpenCodeInitDto,
 	OpenCodeDiagnosticsGetRequest,
 	OpenCodeDiagnosticsGetResult,
@@ -83,6 +84,13 @@ const OpenCodeWorkspaceDiagnosticFilesLimit = 8;
 const OpenCodeTaskProblemsLimit = 8;
 const OpenCodeTerminalBufferLines = 80;
 const OpenCodeTerminalOutputChars = 12_000;
+const OpenCodeHostCapabilities: OpenCodeHostCapabilitiesDto = {
+	clipboard: { readText: true, writeText: true },
+	editor: { open: true, readRange: true, reveal: true },
+	diagnostics: { file: true, workspace: true },
+	terminal: { last: true },
+	task: { last: true },
+};
 type MutableOpenCodeTaskSnapshot = { -readonly [K in keyof OpenCodeTaskSnapshotDto]: OpenCodeTaskSnapshotDto[K] };
 let current: OpenCodeWebviewContribution | undefined;
 
@@ -340,7 +348,7 @@ class OpenCodeWebviewContribution extends Disposable implements IWorkbenchContri
 		if (value.method === 'context.get') {
 			const context = this.ctx();
 			this.lastContextSnapshot = snapshotContext(context);
-			const init: OpenCodeInitDto = { ...context, theme: { mode: this.themeMode() } };
+			const init: OpenCodeInitDto = { ...context, theme: { mode: this.themeMode() }, capabilities: OpenCodeHostCapabilities };
 			return Promise.resolve(init);
 		}
 
@@ -379,6 +387,10 @@ class OpenCodeWebviewContribution extends Disposable implements IWorkbenchContri
 
 		if (value.method === 'clipboard.writeText') {
 			return this.clipboardService.writeText(value.params.text);
+		}
+
+		if (value.method === 'clipboard.readText') {
+			return this.clipboardService.readText().then(text => ({ text }));
 		}
 
 		if (value.method === 'aiExtensions.installed.list') {

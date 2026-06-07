@@ -121,6 +121,28 @@ export interface OpenCodeThemeDto {
 	readonly mode: OpenCodeThemeMode;
 }
 
+export interface OpenCodeHostCapabilitiesDto {
+	readonly clipboard: {
+		readonly readText: boolean;
+		readonly writeText: boolean;
+	};
+	readonly editor: {
+		readonly open: boolean;
+		readonly readRange: boolean;
+		readonly reveal: boolean;
+	};
+	readonly diagnostics: {
+		readonly file: boolean;
+		readonly workspace: boolean;
+	};
+	readonly terminal: {
+		readonly last: boolean;
+	};
+	readonly task: {
+		readonly last: boolean;
+	};
+}
+
 export type OpenCodeAIExtensionType = 'skill' | 'plugin' | 'mcp';
 export type OpenCodeAIExtensionSource = 'codex' | 'claude' | 'opencode';
 export type OpenCodeAIExtensionInstallState = 'notInstalled' | 'installed' | 'viewOnly' | 'unsupported';
@@ -176,6 +198,7 @@ export interface OpenCodeContextDto {
  */
 export interface OpenCodeInitDto extends OpenCodeContextDto {
 	readonly theme: OpenCodeThemeDto;
+	readonly capabilities?: OpenCodeHostCapabilitiesDto;
 }
 
 export type OpenCodeContextGetRequest = {
@@ -303,6 +326,16 @@ export type OpenCodeClipboardWriteTextRequest = {
 	};
 };
 
+export type OpenCodeClipboardReadTextRequest = {
+	readonly source: 'opencode-bridge';
+	readonly id: string;
+	readonly method: 'clipboard.readText';
+};
+
+export type OpenCodeClipboardReadTextResult = {
+	readonly text: string;
+};
+
 export type OpenCodeAIExtensionsListRequest = {
 	readonly source: 'opencode-bridge';
 	readonly id: string;
@@ -337,6 +370,7 @@ export type OpenCodeBridgeRequest =
 	| OpenCodeLastTaskGetRequest
 	| OpenCodeLastTerminalGetRequest
 	| OpenCodeClipboardWriteTextRequest
+	| OpenCodeClipboardReadTextRequest
 	| OpenCodeAIExtensionsListRequest
 	| OpenCodeAIExtensionActionRequest
 	| OpenCodeAIExtensionsSyncRequest;
@@ -418,6 +452,9 @@ export function isOpenCodeBridgeRequest(value: unknown): value is OpenCodeBridge
 	}
 	if (data.method === 'clipboard.writeText') {
 		return isClipboardWriteTextParams(data.params);
+	}
+	if (data.method === 'clipboard.readText') {
+		return data.params === undefined;
 	}
 	if (data.method === 'aiExtensions.installed.list' || data.method === 'aiExtensions.sync') {
 		return data.params === undefined;
