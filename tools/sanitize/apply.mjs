@@ -444,6 +444,7 @@ function rewritePackaging() {
 		.replace('AppPublisherURL=https://code.visualstudio.com/', 'AppPublisherURL=https://github.com/xxloocee/opencode-ide')
 		.replace('AppSupportURL=https://code.visualstudio.com/', 'AppSupportURL=https://github.com/xxloocee/opencode-ide')
 		.replace('AppUpdatesURL=https://code.visualstudio.com/', 'AppUpdatesURL=https://github.com/xxloocee/opencode-ide')
+		.replace(/Source: "tools\\\*"; DestDir: "\{app\}\\\{#VersionedResourcesFolder\}\\tools"; Flags: ignoreversion(?! skipifsourcedoesntexist)/g, 'Source: "tools\\*"; DestDir: "{app}\\{#VersionedResourcesFolder}\\tools"; Flags: ignoreversion skipifsourcedoesntexist')
 		.replace('This User Installer is not meant to be run as an Administrator. If you would like to install VS Code for all users in this system, download the System Installer instead from https://code.visualstudio.com. Are you sure you want to continue?', 'This User Installer is not meant to be run as an Administrator. If you would like to install OpenCode IDE for all users in this system, use the System Installer instead. Are you sure you want to continue?')
 	);
 

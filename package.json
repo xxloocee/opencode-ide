@@ -51,6 +51,7 @@
     "update-grammars": "node build/npm/update-all-grammars.ts",
     "update-localization-extension": "node build/npm/update-localization-extension.ts",
     "mixin-telemetry-docs": "node build/npm/mixin-telemetry-docs.ts",
+    "opencode-clean:win32-system-setup": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/opencode-clean-win32-system-setup.ps1",
     "smoketest": "node build/lib/preLaunch.ts && cd test/smoke && npm run compile && node test/index.js",
     "smoketest-no-compile": "cd test/smoke && node test/index.js",
     "download-builtin-extensions": "node build/lib/builtInExtensions.ts",

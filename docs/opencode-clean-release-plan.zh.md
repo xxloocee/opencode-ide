@@ -70,17 +70,86 @@ node tools\sanitize\apply.mjs --profile=clean-full
 node tools\sanitize\verify.mjs --profile=clean-full
 ```
 
-然后安装依赖并执行对应平台的构建任务。以 Windows x64 系统安装包为例：
+### Windows x64 system setup 推荐入口
+
+Windows 本地 release 构建优先使用仓库脚本，让 Node、MSVC、`signtool.exe` 和 gulp 前置任务保持一致：
 
 ```powershell
-npm ci
-npm run gulp vscode-win32-x64-system-setup
+nvm use 24.15.0
+npm run opencode-clean:win32-system-setup
 ```
+
+脚本入口：
+
+```text
+scripts/opencode-clean-win32-system-setup.ps1
+```
+
+脚本会按顺序执行：
+
+1. 检查当前 Node.js 是否匹配 `.nvmrc`。
+2. 设置本地 Windows 原生依赖构建环境：
+   - `GYP_MSVS_VERSION=2022`
+   - `npm_config_msvs_version=2022`
+   - `VCToolsVersion=14.42.34433`
+   - `PreferredToolArchitecture=x64`
+3. 在 Windows SDK 目录中查找 `signtool.exe` 并加入当前进程的 `PATH`。
+4. 执行 `sanitize.test.mjs`、`apply.mjs --profile=clean-full`、`verify.mjs --profile=clean-full`。
+5. 执行 `npm ci`。
+6. 执行 `vscode-win32-x64-min`。
+7. 执行 `vscode-win32-x64-system-setup`。
+
+本机已验证可用的工具链组合：
+
+```powershell
+$env:GYP_MSVS_VERSION='2022'
+$env:npm_config_msvs_version='2022'
+$env:VCToolsVersion='14.42.34433'
+$env:PreferredToolArchitecture='x64'
+$env:PATH='C:\Program Files (x86)\Windows Kits\10\bin\10.0.26100.0\x64;' + $env:PATH
+```
+
+如果本机已完成净化或依赖安装，可以显式跳过对应步骤：
+
+```powershell
+npm run opencode-clean:win32-system-setup -- -SkipSanitize
+npm run opencode-clean:win32-system-setup -- -SkipNpmCi
+npm run opencode-clean:win32-system-setup -- -ValidateOnly
+```
+
+如果 OpenCode baseline runtime 下载或解压失败，例如出现 `Failed to extract executable for 'bun-windows-x64-baseline-*'`，本地临时验证可以显式跳过 baseline：
+
+```powershell
+npm run opencode-clean:win32-system-setup -- -SkipBaseline
+```
+
+`-SkipBaseline` 只用于本地兜底，不应默认用于正式 release parity 校验。正式 tag workflow 仍应尽量保留 baseline runtime 构建，除非明确接受 runtime 产物差异。
 
 命令含义：
 
 - `npm ci`：按 `package-lock.json` 精确安装仓库依赖，适合 CI 和干净本地构建；它会重建 `node_modules`，确保后续 gulp 构建使用锁定版本。
+- `npm run gulp vscode-win32-x64-min`：生成最小化客户端目录，setup 任务依赖这个前置输出。
 - `npm run gulp vscode-win32-x64-system-setup`：通过仓库里的 gulp 构建入口执行 `vscode-win32-x64-system-setup` 任务，生成 Windows x64 的系统级安装器。
+
+### 手动命令等价流程
+
+如果需要绕过脚本逐步排查，可以手动执行：
+
+```powershell
+nvm use 24.15.0
+$env:GYP_MSVS_VERSION='2022'
+$env:npm_config_msvs_version='2022'
+$env:VCToolsVersion='14.42.34433'
+$env:PreferredToolArchitecture='x64'
+$env:PATH='C:\Program Files (x86)\Windows Kits\10\bin\10.0.26100.0\x64;' + $env:PATH
+
+node tools\sanitize\sanitize.test.mjs
+node tools\sanitize\apply.mjs --profile=clean-full
+node tools\sanitize\verify.mjs --profile=clean-full
+npm ci
+npm run gulp vscode-win32-x64-min
+npm run gulp vscode-win32-x64-system-setup
+```
 
 常用 Windows x64 本地产物任务：
 
@@ -144,6 +213,20 @@ tag 触发默认构建全部平台和架构：
 - `linux`
 
 其中 `all` 会构建三平台六架构；单平台选项会构建对应平台的 x64 和 arm64。
+
+### tag workflow 审阅结论
+
+`.github/workflows/build-quantcode-installers.yml` 当前适合继续作为 `opencode-clean-v*.*.*` tag 的发布入口，但打 tag 前要注意下面几条边界：
+
+- Windows job 使用 `windows-2022`，通常会落到 VS2022 Build Tools，能避开本机 VS2026 缺 Spectre libs 导致 `npm ci` 失败的问题。
+- Windows job 已经在 Windows SDK 下自动查找 `signtool.exe` 并加入 `PATH`，与本地脚本保持一致。
+- tag 触发时 `OPENCODE_REPOSITORY` 固定为 `xxloocee/opencode-private`，`OPENCODE_REF` 固定为 `main`。这意味着同一个 IDE tag 在不同时间重跑，可能拿到不同的 OpenCode runtime commit；workflow 会在 `BUILD_INFO-*.txt` 记录实际 `opencode_sha`，但发布语义上仍要接受“runtime 跟随 main”的策略。
+- workflow 默认不设置 `ERGOUZICODE_OPENCODE_SKIP_BASELINE=1`。这是正确的 release parity 默认值；如果 CI 也遇到 Bun baseline 下载或解压失败，应优先修 baseline 获取逻辑，而不是直接把 skip baseline 变成 tag 构建默认值。
+- `vscode-win32-<arch>-system-setup` 依赖前置的 `vscode-win32-<arch>-min` 输出，workflow 已按 `min`、`inno-updater`、`system-setup`、`user-setup` 顺序执行。
+- `build/win32/code.iss` 里的顶层 `tools\*` 应保持可选；clean-full 输出不一定包含顶层 `tools` 目录，否则本地和 CI 的 setup 任务都会在 Inno Setup 阶段失败。
+- `release` job 只在 tag 以 `refs/tags/opencode-clean-v` 开头时执行，且依赖所有 matrix build 完成。任何一个平台失败都会阻止 GitHub Release 创建，这是发布流程的合理失败模式。
+
+如果后续希望 tag 构建完全可复现，建议把 `OPENCODE_REF` 从固定 `main` 改为随 IDE tag 明确记录的 runtime tag 或 commit SHA。
 
 ## 构建产物
 
@@ -243,6 +326,23 @@ gh run list --repo xxloocee/opencode-ide --workflow build-quantcode-installers.y
 - 不要直接改净化后的源码。
 - 先确认失败文件是不是上游结构变化。
 - 修改 `tools/sanitize/apply.mjs` 和 `tools/sanitize/verify.mjs`，再补 `sanitize.test.mjs`。
+
+如果本地 `npm ci` 失败：
+
+- 先确认 Node.js 与 `.nvmrc` 一致，当前要求是 `24.15.0`。
+- 如果 Windows 原生模块构建报 MSBuild 或 Spectre libs 相关错误，优先使用 VS2022 Build Tools，并设置 `GYP_MSVS_VERSION=2022`、`npm_config_msvs_version=2022`、`VCToolsVersion=14.42.34433`。
+- 不要优先改 `package-lock.json` 或降级依赖；这类错误通常是本机 C++ 构建工具链选择不对。
+
+如果 Windows setup 阶段找不到 `signtool.exe`：
+
+- 确认安装了 Windows SDK。
+- 把类似 `C:\Program Files (x86)\Windows Kits\10\bin\10.0.26100.0\x64` 的目录加入当前构建进程 `PATH`。
+- 推荐直接使用 `npm run opencode-clean:win32-system-setup`，脚本会自动搜索 Windows SDK 下的 `signtool.exe`。
+
+如果 OpenCode baseline runtime 下载或解压失败：
+
+- 本地临时验证可以使用 `npm run opencode-clean:win32-system-setup -- -SkipBaseline`。
+- 正式 tag workflow 不应默认跳过 baseline；CI 也失败时，优先检查 Bun baseline 下载 URL、缓存和解压逻辑。
 
 如果某个平台构建失败：
 

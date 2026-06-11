@@ -58,7 +58,9 @@ index 74576dc9833..c7045a81642 100644
  // User Data Profiles
  import '../workbench/contrib/userDataProfile/browser/userDataProfile.contribution.js';
  
-@@ -445,14 +434,12 @@ import './browser/parts/editorParts.js';
+@@ -445,16 +434,14 @@ import './browser/parts/editorParts.js';
+ import './browser/parts/sessionsParts.js';
+ import './browser/sessionsViewService.js';
  import './browser/parts/menubar.contribution.js';
  import './browser/layoutActions.js';
  
@@ -71,5 +73,5 @@ index 74576dc9833..c7045a81642 100644
 -import './contrib/providers/copilotChatSessions/browser/copilotChatSessions.contribution.js';
  import './contrib/providers/localChatSessions/browser/localChatSessions.contribution.js';
  import './contrib/sessions/browser/sessions.contribution.js';
- import './contrib/sessions/browser/views/sessionsListModelService.js';
+ import './services/sessions/browser/sessionsListModelService.js';
  import './services/agentHostFilter/browser/agentHostFilterService.js';

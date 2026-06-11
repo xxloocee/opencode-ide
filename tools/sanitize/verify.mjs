@@ -404,6 +404,7 @@ const packagingMustInclude = [
 	['resources/linux/debian/postinst.template', 'OpenCode IDE packages do not configure any external apt repository.'],
 	['resources/linux/rpm/code.spec.template', 'Vendor:   OpenCode IDE'],
 	['build/win32/code.iss', 'AppPublisher=OpenCode IDE'],
+	['build/win32/code.iss', 'Source: "tools\\*"; DestDir: "{app}\\{#VersionedResourcesFolder}\\tools"; Flags: ignoreversion skipifsourcedoesntexist'],
 ];
 
 for (const [rel, snippet] of packagingMustInclude) {

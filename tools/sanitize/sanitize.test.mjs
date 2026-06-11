@@ -187,6 +187,21 @@ test('apply clean-full defaults startup editor to none', () => {
 	assert.doesNotMatch(text, /'workbench\.startupEditor': \{[\s\S]*?'default': 'welcomePage'/);
 });
 
+test('apply clean-full makes Windows packaging tools source optional', () => {
+	const root = makeFixtureRoot({ includeCoreWorkbenchChatEntry: true });
+	const codeIssPath = path.join(root, 'build', 'win32', 'code.iss');
+	writeText(codeIssPath, 'AppPublisher=OpenCode IDE\nSource: "tools\\*"; DestDir: "{app}\\{#VersionedResourcesFolder}\\tools"; Flags: ignoreversion\n');
+
+	const first = runNode(applyScript, `--root=${root}`, '--profile=clean-full');
+	const second = runNode(applyScript, `--root=${root}`, '--profile=clean-full');
+
+	assert.equal(first.status, 0, first.stderr + first.stdout);
+	assert.equal(second.status, 0, second.stderr + second.stdout);
+	const text = fs.readFileSync(codeIssPath, 'utf8');
+	assert.match(text, /Source: "tools\\\*"; DestDir: "\{app\}\\\{#VersionedResourcesFolder\}\\tools"; Flags: ignoreversion skipifsourcedoesntexist/);
+	assert.doesNotMatch(text, /skipifsourcedoesntexist skipifsourcedoesntexist/);
+});
+
 test('verify clean-full rejects welcome page as startup editor default', () => {
 	const root = makeFixtureRoot({ includeStartupWelcomeDefault: true });
 
@@ -409,7 +424,7 @@ function makeFixtureRoot(options = {}) {
 	writeText(path.join(root, 'resources', 'linux', 'debian', 'templates.template'), 'Template: @@NAME@@/configure-external-repo\n');
 	writeText(path.join(root, 'resources', 'linux', 'debian', 'postinst.template'), 'OpenCode IDE packages do not configure any external apt repository.\n');
 	writeText(path.join(root, 'resources', 'linux', 'rpm', 'code.spec.template'), 'Vendor:   OpenCode IDE\n');
-	writeText(path.join(root, 'build', 'win32', 'code.iss'), 'AppPublisher=OpenCode IDE\n');
+	writeText(path.join(root, 'build', 'win32', 'code.iss'), 'AppPublisher=OpenCode IDE\nSource: "tools\\*"; DestDir: "{app}\\{#VersionedResourcesFolder}\\tools"; Flags: ignoreversion skipifsourcedoesntexist\n');
 	writeJson(path.join(root, 'resources', 'server', 'manifest.json'), {
 		name: options.includeUpstreamProductIcons ? 'Code - OSS' : 'OpenCode IDE',
 		short_name: options.includeUpstreamProductIcons ? 'Code - OSS' : 'OpenCode IDE',

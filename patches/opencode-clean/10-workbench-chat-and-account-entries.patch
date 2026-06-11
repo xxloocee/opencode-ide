@@ -61,12 +61,14 @@ index a59c54bfe18..dcc57fa5c36 100644
  // Tags
  import './contrib/tags/electron-browser/workspaceTagsService.js';
  import './contrib/tags/electron-browser/tags.contribution.js';
-@@ -179,8 +176,6 @@ import './contrib/multiDiffEditor/browser/multiDiffEditor.contribution.js';
+@@ -179,10 +176,8 @@ import './contrib/multiDiffEditor/browser/multiDiffEditor.contribution.js';
  // Remote Tunnel
  import './contrib/remoteTunnel/electron-browser/remoteTunnel.contribution.js';
  
 -// Chat
 -import './contrib/chat/electron-browser/chat.contribution.js';
+ import '../platform/aiExtensions/electron-browser/aiExtensionsMarketplaceService.js';
+ import './contrib/aiExtensions/browser/aiExtensions.contribution.js';
  import './contrib/opencode/browser/opencode.contribution.js';
  import './contrib/opencode/browser/opencodeWebview.contribution.js';
  
