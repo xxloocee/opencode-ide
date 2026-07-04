@@ -12,6 +12,7 @@ import { root, stateFile, stateContentsFile, computeState, computeContents, isUp
 
 const npm = process.platform === 'win32' ? 'npm.cmd' : 'npm';
 const rootNpmrcConfigKeys = getNpmrcConfigKeys(path.join(root, '.npmrc'));
+const skipCopilotInstall = process.env['OPENCODE_CLEAN_RELEASE_SKIP_COPILOT_INSTALL'] === '1';
 
 function log(dir: string, message: string) {
 	if (process.stdout.isTTY) {
@@ -254,6 +255,11 @@ async function main() {
 		if (dir === '') {
 			removeParcelWatcherPrebuild(dir);
 			continue; // already executed in root
+		}
+
+		if (skipCopilotInstall && dir === 'extensions/copilot') {
+			log(dir, 'Skipping dependencies for clean release.');
+			continue;
 		}
 
 		if (dir === 'build') {

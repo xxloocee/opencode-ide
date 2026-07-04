@@ -186,6 +186,8 @@ jobs:
 
       - name: Install OpenCode IDE dependencies
         shell: bash
+        env:
+          OPENCODE_CLEAN_RELEASE_SKIP_COPILOT_INSTALL: "1"
         run: npm ci
 
       - name: Sanitize OpenCode IDE release tree
@@ -264,7 +266,22 @@ jobs:
 
           mkdir -p "$artifact_dir"
           (cd "$app_root" && zip -Xry "$artifact_dir/OpenCodeIDE-darwin-${{ matrix.arch }}-$version.zip" .)
-          hdiutil create -volname "OpenCode IDE Preview" -srcfolder "$app_path" -ov -format UDZO "$artifact_dir/OpenCodeIDE-darwin-${{ matrix.arch }}-$version.dmg"
+
+          dmg_src="$(mktemp -d)"
+          trap 'rm -rf "$dmg_src"' EXIT
+          ditto "$app_path" "$dmg_src/$(basename "$app_path")"
+
+          for attempt in 1 2 3; do
+            if hdiutil create -volname "OpenCode IDE Preview" -srcfolder "$dmg_src/$(basename "$app_path")" -ov -format UDZO "$artifact_dir/OpenCodeIDE-darwin-${{ matrix.arch }}-$version.dmg"; then
+              break
+            fi
+
+            if [ "$attempt" -eq 3 ]; then
+              exit 1
+            fi
+
+            sleep 5
+          done
 
       - name: Build Linux client
         if: runner.os == 'Linux'
