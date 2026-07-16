@@ -117,6 +117,9 @@ jobs:
           persist-credentials: false
           token: ${{ secrets.CROSS_REPO_GH_TOKEN || secrets.UPSTREAM_SYNC_TOKEN || github.token }}
 
+      - name: Validate OpenCode runtime dependency contract
+        run: node tools/validate-opencode-runtime.mjs --root=opencode-source
+
       - name: Resolve OpenCode runtime revision
         id: opencode-revision
         shell: bash

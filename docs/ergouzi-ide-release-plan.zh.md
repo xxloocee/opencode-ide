@@ -328,6 +328,7 @@ $releaseFiles = @(
   'src/vs/workbench/contrib/aiExtensions/browser/aiExtensionsWorkbenchService.ts'
   'src/vs/workbench/contrib/opencode/browser/opencode.contribution.ts'
   'tools/sanitize'
+  'tools/validate-opencode-runtime.mjs'
   ':(glob)docs/*release-plan.zh.md'
   'docs/opencode-boundaries.zh.md'
   'docs/opencode-ide-agent-roadmap.zh.md'

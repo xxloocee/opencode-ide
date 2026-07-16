@@ -9,6 +9,7 @@ import { fileURLToPath } from 'node:url';
 const repoRoot = path.resolve(fileURLToPath(new URL('../..', import.meta.url)));
 const applyScript = path.join(repoRoot, 'tools', 'sanitize', 'apply.mjs');
 const verifyScript = path.join(repoRoot, 'tools', 'sanitize', 'verify.mjs');
+const runtimeValidatorScript = path.join(repoRoot, 'tools', 'validate-opencode-runtime.mjs');
 
 test('release workflow treats manual product versions as data', () => {
 	const workflow = fs.readFileSync(path.join(repoRoot, '.github', 'workflows', 'build-ergouzi-ide-installers.yml'), 'utf8');
@@ -29,6 +30,8 @@ test('release workflow treats manual product versions as data', () => {
 	assert.match(workflow, /opencode_ref: \$\{\{ steps\.opencode-source\.outputs\.ref \}\}/);
 	assert.match(workflow, /opencode_sha: \$\{\{ steps\.opencode-revision\.outputs\.sha \}\}/);
 	assert.match(workflow, /ref: \$\{\{ needs\.plan\.outputs\.opencode_sha \}\}/);
+	assert.match(workflow, /node tools\/validate-opencode-runtime\.mjs --root=opencode-source/);
+	assert.ok(workflow.indexOf('Validate OpenCode runtime dependency contract') < workflow.indexOf('Resolve OpenCode runtime revision'));
 	assert.doesNotMatch(workflow, /ref: \$\{\{ env\.OPENCODE_REF \}\}\r?\n          path: opencode-source\r?\n          fetch-depth: 0/);
 	assert.match(workflow, /Refuse to overwrite an existing release/);
 	assert.match(workflow, /softprops\/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2\.6\.2/);
@@ -62,6 +65,7 @@ test('release guide stages required implementation files and publishes from main
 		'build/win32/code.iss',
 		'package.json',
 		'product.json',
+		'tools/validate-opencode-runtime.mjs',
 		':(glob).github/workflows/build-*-installers.yml',
 		':(glob)scripts/*win32-system-setup.ps1',
 		':(glob)docs/*release-plan.zh.md'
@@ -108,6 +112,32 @@ test('release guide stages required implementation files and publishes from main
 	}
 	assert.match(releaseFlow, /Invoke-NativeStep 'rerun sanitizer tests' \{ node tools\\sanitize\\sanitize\.test\.mjs \}/);
 	assert.match(releaseFlow, /Invoke-NativeStep 'recheck working tree diff' \{ git diff --check \}/);
+});
+
+test('OpenCode runtime validator rejects invalid lock encoding and missing workspace catalog entries', () => {
+	const root = fs.mkdtempSync(path.join(os.tmpdir(), 'ergouzi-opencode-runtime-'));
+	writeJson(path.join(root, 'package.json'), { workspaces: { packages: ['packages/*'], catalog: { zod: '4.1.8' } } });
+	writeJson(path.join(root, 'packages', 'app-ide', 'package.json'), { dependencies: { zod: 'catalog:' } });
+	writeText(path.join(root, 'bun.lock'), '{}\n');
+
+	const valid = runNode(runtimeValidatorScript, `--root=${root}`);
+	assert.equal(valid.status, 0, valid.stderr + valid.stdout);
+
+	writeJson(path.join(root, 'packages', 'other', 'package.json'), { dependencies: { virtua: 'catalog:' } });
+	const missingCatalog = runNode(runtimeValidatorScript, `--root=${root}`);
+	assert.notEqual(missingCatalog.status, 0);
+	assert.match(missingCatalog.stderr + missingCatalog.stdout, /missing catalog entries: packages[\\/]other[\\/]package\.json:dependencies\.virtua/);
+
+	writeJson(path.join(root, 'packages', 'other', 'package.json'), { dependencies: { zod: 'catalog:' } });
+	fs.writeFileSync(path.join(root, 'bun.lock'), Buffer.from('\uFEFF{}\n', 'utf16le'));
+	const utf16Lock = runNode(runtimeValidatorScript, `--root=${root}`);
+	assert.notEqual(utf16Lock.status, 0);
+	assert.match(utf16Lock.stderr + utf16Lock.stdout, /must be UTF-8; UTF-16 lockfiles are ignored by Bun/);
+
+	fs.writeFileSync(path.join(root, 'bun.lock'), Buffer.from('{}\n', 'utf16le'));
+	const utf16LockWithoutBom = runNode(runtimeValidatorScript, `--root=${root}`);
+	assert.notEqual(utf16LockWithoutBom.status, 0);
+	assert.match(utf16LockWithoutBom.stderr + utf16LockWithoutBom.stdout, /contains NUL bytes/);
 });
 
 test('apply rejects unknown sanitize steps', () => {
