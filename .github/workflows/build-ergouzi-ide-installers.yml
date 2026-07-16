@@ -78,7 +78,7 @@ jobs:
           echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
 
       - name: Checkout Ergouzi IDE release metadata
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           fetch-depth: 1
           persist-credentials: false
@@ -108,7 +108,7 @@ jobs:
           echo "ref=$ref" >> "$GITHUB_OUTPUT"
 
       - name: Checkout OpenCode runtime source for revision resolution
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: ${{ env.OPENCODE_REPOSITORY }}
           ref: ${{ steps.opencode-source.outputs.ref }}
@@ -138,7 +138,7 @@ jobs:
 
     steps:
       - name: Checkout Ergouzi IDE
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
           persist-credentials: false
@@ -167,7 +167,7 @@ jobs:
           echo "ERGOUZI_IDE_RELEASE_VERSION=$release_version" >> "$GITHUB_ENV"
 
       - name: Checkout OpenCode runtime source
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: ${{ env.OPENCODE_REPOSITORY }}
           ref: ${{ needs.plan.outputs.opencode_sha }}
