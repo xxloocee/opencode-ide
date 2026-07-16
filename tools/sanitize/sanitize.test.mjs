@@ -14,10 +14,21 @@ const runtimeValidatorScript = path.join(repoRoot, 'tools', 'validate-opencode-r
 test('release workflow treats manual product versions as data', () => {
 	const workflow = fs.readFileSync(path.join(repoRoot, '.github', 'workflows', 'build-ergouzi-ide-installers.yml'), 'utf8');
 	const runtimeRef = fs.readFileSync(path.join(repoRoot, '.github', 'opencode-runtime-ref'), 'utf8').trim();
-	const installStep = workflow.match(/^      - name: Install Ergouzi IDE dependencies\r?\n[\s\S]*?(?=^      - name:)/m)?.[0];
+	const workflowStep = (name) => {
+		const marker = `      - name: ${name}`;
+		const start = workflow.indexOf(marker);
+		assert.notEqual(start, -1, `missing workflow step: ${name}`);
+		const end = workflow.indexOf('\n      - name:', start + marker.length);
+		return workflow.slice(start, end === -1 ? undefined : end);
+	};
+	const authenticatedSteps = [
+		'Install Ergouzi IDE dependencies',
+		'Build Windows client',
+		'Build macOS client',
+		'Build Linux client',
+	].map(workflowStep);
 
 	assert.match(runtimeRef, /^[0-9a-f]{40}$/);
-	assert.ok(installStep);
 	assert.match(workflow, /INPUT_RELEASE_VERSION: \$\{\{ inputs\.release_version \}\}/);
 	assert.match(workflow, /release_version="\$INPUT_RELEASE_VERSION"/);
 	assert.doesNotMatch(workflow, /release_version="\$\{\{ inputs\.release_version \}\}"/);
@@ -33,9 +44,11 @@ test('release workflow treats manual product versions as data', () => {
 	assert.match(workflow, /opencode_sha: \$\{\{ steps\.opencode-revision\.outputs\.sha \}\}/);
 	assert.match(workflow, /ref: \$\{\{ needs\.plan\.outputs\.opencode_sha \}\}/);
 	assert.match(workflow, /node tools\/validate-opencode-runtime\.mjs --root=opencode-source/);
-	assert.match(installStep, /^          GITHUB_TOKEN: \$\{\{ github\.token \}\}$/m);
-	assert.match(installStep, /^        run: npm ci$/m);
-	assert.equal((workflow.match(/GITHUB_TOKEN: \$\{\{ github\.token \}\}/g) || []).length, 1);
+	for (const step of authenticatedSteps) {
+		assert.match(step, /^          GITHUB_TOKEN: \$\{\{ github\.token \}\}$/m);
+	}
+	assert.match(authenticatedSteps[0], /^        run: npm ci$/m);
+	assert.equal((workflow.match(/GITHUB_TOKEN: \$\{\{ github\.token \}\}/g) || []).length, authenticatedSteps.length);
 	assert.equal((workflow.match(/key: \$\{\{ runner\.os \}\}-\$\{\{ runner\.arch \}\}-opencode-bun-\$\{\{ hashFiles\('opencode-source\/\*\*\/bun\.lock'\) \}\}/g) || []).length, 2);
 	assert.doesNotMatch(workflow, /restore-keys:[\s\S]*?opencode-bun-/);
 	assert.ok(workflow.indexOf('Validate OpenCode runtime dependency contract') < workflow.indexOf('Resolve OpenCode runtime revision'));

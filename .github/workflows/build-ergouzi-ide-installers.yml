@@ -286,6 +286,8 @@ jobs:
 
       - name: Build Windows client
         if: runner.os == 'Windows'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
@@ -331,6 +333,8 @@ jobs:
 
       - name: Build macOS client
         if: runner.os == 'macOS'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
         shell: bash
         run: |
           set -euo pipefail
@@ -365,6 +369,7 @@ jobs:
       - name: Build Linux client
         if: runner.os == 'Linux'
         env:
+          GITHUB_TOKEN: ${{ github.token }}
           VSCODE_LINUX_PACKAGE_STRICT_DEPS: "false"
         shell: bash
         run: |
