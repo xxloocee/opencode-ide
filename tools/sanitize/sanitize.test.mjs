@@ -38,15 +38,20 @@ test('release workflow treats manual product versions as data', () => {
 });
 
 test('OpenCode clean patch set matches the current workbench entry points', () => {
-	const patchFile = path.join(repoRoot, 'patches', 'opencode-clean', '10-workbench-chat-and-account-entries.patch');
-	const args = ['apply', '--check', '--ignore-whitespace', patchFile];
-	const forward = spawnSync('git', args, { cwd: repoRoot, encoding: 'utf8' });
-	if (forward.status === 0) {
-		return;
-	}
+	for (const patchName of [
+		'10-workbench-chat-and-account-entries.patch',
+		'20-default-account-null-service.patch',
+	]) {
+		const patchFile = path.join(repoRoot, 'patches', 'opencode-clean', patchName);
+		const args = ['apply', '--check', '--ignore-whitespace', patchFile];
+		const forward = spawnSync('git', args, { cwd: repoRoot, encoding: 'utf8' });
+		if (forward.status === 0) {
+			continue;
+		}
 
-	const reverse = spawnSync('git', ['apply', '--check', '--reverse', '--ignore-whitespace', patchFile], { cwd: repoRoot, encoding: 'utf8' });
-	assert.equal(reverse.status, 0, [forward.stderr, forward.stdout, reverse.stderr, reverse.stdout].filter(Boolean).join('\n'));
+		const reverse = spawnSync('git', ['apply', '--check', '--reverse', '--ignore-whitespace', patchFile], { cwd: repoRoot, encoding: 'utf8' });
+		assert.equal(reverse.status, 0, `${patchName}\n${[forward.stderr, forward.stdout, reverse.stderr, reverse.stdout].filter(Boolean).join('\n')}`);
+	}
 });
 
 test('Darwin post-package tasks use the compatibility app bundle path', () => {

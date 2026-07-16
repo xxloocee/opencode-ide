@@ -178,7 +178,7 @@ index 3b83b56e413..48a5089232f 100644
 -import { DefaultAccountService } from '../services/accounts/browser/defaultAccount.js';
 +import { IDefaultAccountService, NullDefaultAccountService } from '../../platform/defaultAccount/common/defaultAccount.js';
  import { AccountPolicyService, IAccountPolicyGateService } from '../services/policies/common/accountPolicyService.js';
- import { MultiplexPolicyService } from '../services/policies/common/multiplexPolicyService.js';
+ import { MultiplexPolicyService } from '../../platform/policy/common/multiplexPolicyService.js';
  
 @@ -210,7 +209,7 @@ export class DesktopMain extends Disposable {
  		}
