@@ -126,6 +126,26 @@ for (const [rel, manifest] of [
 	}
 }
 
+for (const nodeModulesRel of ['node_modules', 'remote/node_modules']) {
+	const githubScope = path.join(root, nodeModulesRel, '@github');
+	const installedCopilotPackages = [
+		path.join(githubScope, 'copilot'),
+		path.join(githubScope, 'copilot-sdk'),
+		path.join(root, nodeModulesRel, '@vscode', 'copilot-api'),
+	];
+	if (fs.existsSync(githubScope)) {
+		installedCopilotPackages.push(...fs.readdirSync(githubScope)
+			.filter(name => name.startsWith('copilot-'))
+			.map(name => path.join(githubScope, name)));
+	}
+	for (const packagePath of installedCopilotPackages) {
+		if (fs.existsSync(packagePath)) {
+			console.error(`[sanitize] failed: ${path.relative(root, packagePath).split(path.sep).join('/')}`);
+			failed = true;
+		}
+	}
+}
+
 const buildChecks = [
 	['build/gulpfile.vscode.ts', /compileCopilotExtensionBuildTask|ensureCopilotPlatformPackage|getCopilotExcludeFilter|getCopilotRuntimePrebuildFiles|getCopilotTgrepExcludeFilter|prepareBuiltInCopilotRipgrepShim/],
 	['build/gulpfile.reh.ts', /compileCopilotExtensionBuildTask|ensureCopilotPlatformPackage|getCopilotExcludeFilter|getCopilotRuntimePrebuildFiles|getCopilotTgrepExcludeFilter|prepareBuiltInCopilotRipgrepShim/],

@@ -364,6 +364,16 @@ test('apply clean-full removes official Copilot dependencies from desktop and re
 		});
 		writeJson(file, manifest);
 	}
+	for (const nodeModulesRel of ['node_modules', 'remote/node_modules']) {
+		for (const packageRel of [
+			'@github/copilot',
+			'@github/copilot-sdk',
+			'@github/copilot-win32-x64',
+			'@vscode/copilot-api',
+		]) {
+			writeJson(path.join(root, nodeModulesRel, ...packageRel.split('/'), 'package.json'), { name: packageRel });
+		}
+	}
 
 	const result = runNode(applyScript, `--root=${root}`, '--profile=clean-full');
 
@@ -373,6 +383,16 @@ test('apply clean-full removes official Copilot dependencies from desktop and re
 		assert.equal(dependencies['@github/copilot'], undefined, rel);
 		assert.equal(dependencies['@github/copilot-sdk'], undefined, rel);
 		assert.equal(dependencies['@vscode/copilot-api'], undefined, rel);
+	}
+	for (const nodeModulesRel of ['node_modules', 'remote/node_modules']) {
+		for (const packageRel of [
+			'@github/copilot',
+			'@github/copilot-sdk',
+			'@github/copilot-win32-x64',
+			'@vscode/copilot-api',
+		]) {
+			assert.equal(fs.existsSync(path.join(root, nodeModulesRel, ...packageRel.split('/'))), false, `${nodeModulesRel}/${packageRel}`);
+		}
 	}
 });
 
@@ -387,6 +407,16 @@ test('verify clean-full rejects an official Copilot dependency left only in the 
 
 	assert.notEqual(result.status, 0);
 	assert.match(result.stderr + result.stdout, /remote\/package\.json\.dependencies\.@github\/copilot/);
+});
+
+test('verify clean-full rejects an installed Copilot package left after manifest cleanup', () => {
+	const root = makeFixtureRoot({ includeCoreWorkbenchChatEntry: true });
+	writeJson(path.join(root, 'remote', 'node_modules', '@github', 'copilot-linux-x64', 'package.json'), { name: '@github/copilot-linux-x64' });
+
+	const result = runNode(verifyScript, `--root=${root}`, '--profile=clean-full');
+
+	assert.notEqual(result.status, 0);
+	assert.match(result.stderr + result.stdout, /remote\/node_modules\/@github\/copilot-linux-x64/);
 });
 
 test('apply clean-full removes current Copilot packaging hooks while preserving shared native filters', () => {

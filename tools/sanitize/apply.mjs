@@ -178,12 +178,30 @@ function rewritePackageJson() {
 	const remotePkg = JSON.parse(fs.readFileSync(remoteFile, 'utf8'));
 	removeOfficialCopilotDependencies(remotePkg);
 	fs.writeFileSync(remoteFile, JSON.stringify(remotePkg, null, '  ') + '\n');
+	removeInstalledOfficialCopilotPackages();
 	console.log('[sanitize] rewrite-package');
 }
 
 function removeOfficialCopilotDependencies(pkg) {
 	for (const depName of ['@github/copilot', '@github/copilot-sdk', '@vscode/copilot-api']) {
 		delete pkg.dependencies?.[depName];
+	}
+}
+
+function removeInstalledOfficialCopilotPackages() {
+	for (const nodeModulesRoot of [path.join(root, 'node_modules'), path.join(root, 'remote', 'node_modules')]) {
+		const githubScope = path.join(nodeModulesRoot, '@github');
+		for (const packageName of ['copilot', 'copilot-sdk']) {
+			fs.rmSync(path.join(githubScope, packageName), { recursive: true, force: true });
+		}
+		if (fs.existsSync(githubScope)) {
+			for (const entry of fs.readdirSync(githubScope, { withFileTypes: true })) {
+				if (entry.name.startsWith('copilot-')) {
+					fs.rmSync(path.join(githubScope, entry.name), { recursive: true, force: true });
+				}
+			}
+		}
+		fs.rmSync(path.join(nodeModulesRoot, '@vscode', 'copilot-api'), { recursive: true, force: true });
 	}
 }
 
