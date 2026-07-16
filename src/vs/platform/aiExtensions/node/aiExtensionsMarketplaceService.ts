@@ -13,6 +13,7 @@ const AllowedMarketplaceHosts = new Set([
 	'agentskills.to',
 	'claudeskills.club',
 	'glama.ai',
+	'github.com',
 	'raw.githubusercontent.com',
 	'registry.modelcontextprotocol.io',
 	'skillery.dev',

@@ -5,10 +5,13 @@
 
 import * as dom from '../../../../base/browser/dom.js';
 import { Codicon } from '../../../../base/common/codicons.js';
+import Severity from '../../../../base/common/severity.js';
 import { localize, localize2 } from '../../../../nls.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
+import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -25,7 +28,7 @@ import { IViewletViewOptions } from '../../../browser/parts/views/viewsViewlet.j
 import { EditorExtensions } from '../../../common/editor.js';
 import { Extensions as ViewExtensions, IViewContainersRegistry, IViewDescriptorService, IViewsRegistry, ViewContainer, ViewContainerLocation } from '../../../common/views.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
-import { IAIExtensionDescriptor, IAIExtensionsWorkbenchService } from '../common/aiExtensions.js';
+import { AIExtensionsApplyCommandId, IAIExtensionDescriptor, IAIExtensionsWorkbenchService } from '../common/aiExtensions.js';
 import { AIExtensionEditor } from './aiExtensionsEditor.js';
 import { AIExtensionEditorInput } from './aiExtensionsEditorInput.js';
 import { typeLabel } from './aiExtensionsLabels.js';
@@ -57,7 +60,6 @@ class AIExtensionsViewPane extends ViewPane {
 	private readonly expandedTypes = new Set<TypeFilter>(['skill']);
 	private readonly expandedSources = new Set<string>();
 	private selectedId: string | undefined;
-	private listActionBusyId: string | undefined;
 	private listActionInProgress = false;
 	private searchQuery = '';
 	private readonly visibleCounts = new Map<string, number>();
@@ -78,6 +80,8 @@ class AIExtensionsViewPane extends ViewPane {
 		@IAIExtensionsWorkbenchService private readonly aiExtensionsService: IAIExtensionsWorkbenchService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IEditorService private readonly editorService: IEditorService,
+		@ICommandService private readonly commandService: ICommandService,
+		@IDialogService private readonly dialogService: IDialogService,
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 		this._register(this.aiExtensionsService.onDidChange(() => {
@@ -150,6 +154,12 @@ class AIExtensionsViewPane extends ViewPane {
 		if (this.busy) {
 			const loading = dom.append(this.bodyContainer, dom.$('.ai-extensions-empty'));
 			loading.textContent = localize('aiExtensions.loading', "Loading AI extensions...");
+			return;
+		}
+
+		if (this.items.length === 0) {
+			const empty = dom.append(this.bodyContainer, dom.$('.ai-extensions-empty'));
+			empty.textContent = localize('aiExtensions.marketplace.empty', "No marketplace entries were loaded. Check the network connection and refresh the marketplace.");
 			return;
 		}
 
@@ -267,7 +277,7 @@ class AIExtensionsViewPane extends ViewPane {
 			button.type = 'button';
 			button.dataset.listAction = action.id;
 			button.dataset.id = item.id;
-			button.disabled = this.listActionBusyId === item.id;
+			button.disabled = this.listActionInProgress;
 			button.textContent = action.label;
 		}
 	}
@@ -512,28 +522,67 @@ class AIExtensionsViewPane extends ViewPane {
 	}
 
 	private async runListAction(action: string, id: string): Promise<void> {
-		this.listActionBusyId = id;
+		if (this.listActionInProgress) {
+			return;
+		}
+		const item = this.items.find(candidate => candidate.id === id);
+		if (item && action === 'inspect') {
+			this.selectedId = item.id;
+			this.renderContent();
+			await this.editorService.openEditor(new AIExtensionEditorInput(item), { pinned: true });
+			return;
+		}
+		if (!item || !await this.confirmListAction(action, item)) {
+			return;
+		}
+		if (this.listActionInProgress) {
+			return;
+		}
 		this.listActionInProgress = true;
 		this.renderContent();
 		try {
-			let updatedItem: IAIExtensionDescriptor | undefined;
 			if (action === 'install') {
-				updatedItem = await this.aiExtensionsService.install(id);
+				await this.aiExtensionsService.install(id);
+				this.notificationService.info(localize('aiExtensions.install.pendingApply', "Installed {0}. Apply it to load the capability in OpenCode.", item.name));
 			}
 			if (action === 'uninstall') {
 				await this.aiExtensionsService.uninstall(id);
-				updatedItem = (await this.aiExtensionsService.list()).find(candidate => candidate.id === id);
 			}
-			if (updatedItem) {
-				this.items = this.items.map(candidate => candidate.id === id ? updatedItem : candidate);
+			if (action === 'sync') {
+				const result = await this.commandService.executeCommand<{ readonly requiresRuntimeRefresh: boolean }>(AIExtensionsApplyCommandId);
+				this.notificationService.info(result?.requiresRuntimeRefresh
+					? localize('aiExtensions.apply.refreshNeeded', "Applied AI extensions. Reopen the OpenCode assistant if it does not refresh automatically.")
+					: localize('aiExtensions.apply.complete', "Applied AI extensions and reloaded the OpenCode assistant."));
 			}
+			this.items = await this.aiExtensionsService.list();
+			this.ensureExpandedSource();
+			this.ensureSelection();
 		} catch (err) {
 			this.notificationService.error(err);
 		} finally {
 			this.listActionInProgress = false;
-			this.listActionBusyId = undefined;
 			this.renderContent();
 		}
+	}
+
+	private async confirmListAction(action: string, item: IAIExtensionDescriptor): Promise<boolean> {
+		if (action === 'sync') {
+			return true;
+		}
+		const uninstall = action === 'uninstall';
+		const result = await this.dialogService.confirm({
+			type: uninstall ? Severity.Warning : Severity.Info,
+			message: uninstall
+				? localize('aiExtensions.confirmUninstall', "Uninstall {0}?", item.name)
+				: localize('aiExtensions.confirmInstall', "Install {0} from {1}?", item.name, item.sourceLabel),
+			detail: uninstall
+				? localize('aiExtensions.confirmUninstallDetail', "The IDE-managed copy will be removed. Apply AI extensions afterward to reload OpenCode without this capability.")
+				: item.risk,
+			primaryButton: uninstall
+				? localize('aiExtensions.confirmUninstallButton', "Uninstall")
+				: localize('aiExtensions.confirmInstallButton', "Install"),
+		});
+		return result.confirmed;
 	}
 
 	private async refreshMarketplace(): Promise<void> {
@@ -592,14 +641,24 @@ function isNonEmptyString(value: string | undefined): value is string {
 	return typeof value === 'string' && value.length > 0;
 }
 
-function listAction(item: IAIExtensionDescriptor): { readonly id: 'install' | 'uninstall'; readonly label: string } | undefined {
+function listAction(item: IAIExtensionDescriptor): { readonly id: 'inspect' | 'install' | 'sync' | 'uninstall'; readonly label: string } | undefined {
 	if (item.installedByIde) {
+		if (item.syncStatus === 'pending' || item.syncStatus === 'failed') {
+			return { id: 'sync', label: localize('aiExtensions.list.apply', "Apply") };
+		}
 		return { id: 'uninstall', label: localize('aiExtensions.list.uninstall', "Uninstall") };
 	}
 	if (item.installable) {
+		if (item.type === 'plugin' && !hasCompatiblePluginContribution(item)) {
+			return { id: 'inspect', label: localize('aiExtensions.list.inspect', "Inspect") };
+		}
 		return { id: 'install', label: localize('aiExtensions.list.install', "Install") };
 	}
 	return undefined;
+}
+
+function hasCompatiblePluginContribution(item: IAIExtensionDescriptor): boolean {
+	return !!(item.contributions.skills?.length || item.contributions.mcp?.length || item.contributions.files?.length || item.contributions.plugins?.some(plugin => plugin.content || plugin.npm));
 }
 
 function popularityScore(item: IAIExtensionDescriptor): number {

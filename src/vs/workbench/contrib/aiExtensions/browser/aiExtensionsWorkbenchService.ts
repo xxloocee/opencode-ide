@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Queue } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { dirname, joinPath } from '../../../../base/common/resources.js';
@@ -25,6 +26,7 @@ import {
 	IAIExtensionsOverlay,
 	IAIExtensionsWorkbenchService,
 } from '../common/aiExtensions.js';
+import { claudePluginDeclaredSkillPaths, claudePluginMcpServers, githubDirectoryPaths, githubRepositorySlug } from './aiExtensionsPluginParsing.js';
 
 interface IAIExtensionSyncState {
 	readonly status: 'pending' | 'success' | 'failed';
@@ -65,6 +67,7 @@ interface IStoredRegistry {
 
 const InstalledRegistryVersion = 1;
 const InstalledRegistryName = 'installed.json';
+const InstalledRegistryTempName = 'installed.tmp.json';
 const StateFolderName = 'state';
 const SyncStateName = 'sync.json';
 const OverlayTempSegment = 'dir.tmp';
@@ -203,6 +206,7 @@ interface IRemoteMarketplaceEntry {
 interface IRemotePluginSourceMetadata {
 	readonly source?: string | IRemoteMarketplaceSource;
 	readonly marketplaceRepo?: string;
+	readonly skills?: readonly string[];
 }
 
 interface IRemoteSkillSourceMetadata {
@@ -240,18 +244,6 @@ interface IClaudeSkillsEntry {
 	readonly authorAvatar?: string;
 	readonly stars?: number | string;
 	readonly score?: number | string;
-}
-
-interface IClaudePluginMcpJson {
-	readonly mcpServers?: Record<string, IClaudePluginMcpServer>;
-}
-
-interface IClaudePluginMcpServer {
-	readonly type?: string;
-	readonly command?: string;
-	readonly args?: readonly string[];
-	readonly env?: Record<string, string>;
-	readonly cwd?: string;
 }
 
 interface ISkillsMpJson {
@@ -385,6 +377,12 @@ interface IMcpRegistryEntry {
 		readonly remotes?: readonly {
 			readonly type?: string;
 			readonly url?: string;
+			readonly headers?: readonly {
+				readonly name?: string;
+				readonly description?: string;
+				readonly isRequired?: boolean;
+				readonly isSecret?: boolean;
+			}[];
 		}[];
 	};
 	readonly _meta?: {
@@ -427,6 +425,8 @@ export class AIExtensionsWorkbenchService extends Disposable implements IAIExten
 	private marketplaceDescriptorCache: readonly IAIExtensionDescriptor[] | undefined;
 	private marketplaceDescriptorFetch: Promise<readonly IAIExtensionDescriptor[]> | undefined;
 	private marketplaceDescriptorCacheTime = 0;
+	private readonly marketplaceInspectionFetch = new Map<string, Promise<IAIExtensionDescriptor>>();
+	private readonly mutationQueue = this._register(new Queue<unknown>());
 
 	constructor(
 		@IFileService private readonly fileService: IFileService,
@@ -442,9 +442,15 @@ export class AIExtensionsWorkbenchService extends Disposable implements IAIExten
 		const discovered = await this.marketplaceDescriptors();
 		const installed = new Map((await this.readInstalled()).map(item => [item.id, this.toDescriptor(item)]));
 
-		const result = new Map<string, IAIExtensionDescriptor>();
+		const result = new Map<string, IAIExtensionDescriptor>(installed);
 		for (const item of discovered) {
-			result.set(item.id, installed.get(item.id) ?? item);
+			const installedItem = installed.get(item.id);
+			result.set(item.id, installedItem ? {
+				...installedItem,
+				updateState: item.version && installedItem.version
+					? item.version !== installedItem.version ? 'available' : 'latest'
+					: 'unknown',
+			} : item);
 		}
 		return [...result.values()].sort(compareDescriptors);
 	}
@@ -459,15 +465,62 @@ export class AIExtensionsWorkbenchService extends Disposable implements IAIExten
 	}
 
 	async installed(): Promise<readonly IAIExtensionDescriptor[]> {
-		return (await this.readInstalled()).map(item => this.toDescriptor(item)).sort(compareDescriptors);
+		const discovered = new Map((this.marketplaceDescriptorCache ?? []).map(item => [item.id, item]));
+		return (await this.readInstalled()).map(item => {
+			const descriptor = this.toDescriptor(item);
+			const remote = discovered.get(item.id);
+			return remote?.version && descriptor.version
+				? { ...descriptor, updateState: remote.version !== descriptor.version ? 'available' as const : 'latest' as const }
+				: descriptor;
+		}).sort(compareDescriptors);
 	}
 
-	async install(id: string): Promise<IAIExtensionDescriptor> {
+	inspect(id: string): Promise<IAIExtensionDescriptor> {
+		const pending = this.marketplaceInspectionFetch.get(id);
+		if (pending) {
+			return pending;
+		}
+		const inspection = this.doInspect(id).finally(() => this.marketplaceInspectionFetch.delete(id));
+		this.marketplaceInspectionFetch.set(id, inspection);
+		return inspection;
+	}
+
+	private async doInspect(id: string): Promise<IAIExtensionDescriptor> {
+		const item = (await this.list()).find(candidate => candidate.id === id);
+		if (!item) {
+			throw new Error(localize('aiExtensions.inspect.notFound', "AI extension not found: {0}", id));
+		}
+		if (item.type !== 'plugin' || item.installedByIde || !item.installable || hasContributions(item.contributions)) {
+			return item;
+		}
+		const resolved = await this.resolveInstallDescriptor(item);
+		const compatible = hasContributions(resolved.contributions);
+		const inspected: IAIExtensionDescriptor = compatible ? resolved : {
+			...resolved,
+			installable: false,
+			installState: 'unsupported',
+			risk: localize('aiExtensions.inspect.pluginUnsupported', "This plugin does not expose compatible Skills or MCP configuration. Claude agents, commands, hooks, and runtime plugins are not supported by OpenCode IDE yet."),
+		};
+		if (this.marketplaceDescriptorCache) {
+			this.marketplaceDescriptorCache = this.marketplaceDescriptorCache.map(candidate => candidate.id === id ? inspected : candidate);
+		}
+		this._onDidChange.fire();
+		return inspected;
+	}
+
+	install(id: string): Promise<IAIExtensionDescriptor> {
+		return this.queueMutation(() => this.doInstall(id));
+	}
+
+	private async doInstall(id: string): Promise<IAIExtensionDescriptor> {
 		const item = (await this.list()).find(candidate => candidate.id === id);
 		if (!item) {
 			throw new Error(localize('aiExtensions.install.notFound', "AI extension not found: {0}", id));
 		}
 		if (!item.installable) {
+			if (item.type === 'plugin' && item.installState === 'unsupported') {
+				throw new Error(item.risk);
+			}
 			throw new Error(localize('aiExtensions.install.unsupported', "This source is not installable yet."));
 		}
 		if (item.installedByIde) {
@@ -475,8 +528,11 @@ export class AIExtensionsWorkbenchService extends Disposable implements IAIExten
 		}
 
 		const now = Date.now();
-		const installItem = await this.resolveInstallDescriptor(item);
+		const installItem = item.type === 'plugin' ? await this.inspect(id) : await this.resolveInstallDescriptor(item);
 		if (!hasContributions(installItem.contributions)) {
+			if (installItem.type === 'plugin') {
+				throw new Error(localize('aiExtensions.install.pluginUnsupported', "This plugin does not expose compatible Skills or MCP configuration that OpenCode IDE can install yet."));
+			}
 			throw new Error(localize('aiExtensions.install.noRuntimeContent', "This AI extension does not expose installable runtime content yet."));
 		}
 		const trusted = installItem.type === 'skill';
@@ -508,32 +564,54 @@ export class AIExtensionsWorkbenchService extends Disposable implements IAIExten
 		};
 		const installed = await this.readInstalled();
 		await this.writeInstalled([...installed.filter(candidate => candidate.id !== id), stored]);
-		await this.writeSourceManifest(stored);
+		try {
+			await this.writeSourceManifest(stored);
+		} catch (err) {
+			await this.writeInstalled(installed).catch(rollbackErr => this.logService.warn('[AIExtensions] Failed to restore installed registry after install failure', rollbackErr));
+			await this.deleteSource(id);
+			throw err;
+		}
 		this._onDidChange.fire();
 		return this.toDescriptor(stored);
 	}
 
-	async uninstall(id: string): Promise<void> {
+	uninstall(id: string): Promise<void> {
+		return this.queueMutation(() => this.doUninstall(id));
+	}
+
+	private async doUninstall(id: string): Promise<void> {
 		const installed = await this.readInstalled();
+		const removed = installed.find(item => item.id === id);
 		const next = installed.filter(item => item.id !== id);
-		if (next.length === installed.length) {
+		if (!removed || next.length === installed.length) {
 			return;
 		}
 		await this.writeInstalled(next);
 		await this.deleteSource(id);
-		await this.sync();
+		try {
+			await this.doSync();
+		} catch (err) {
+			await this.writeInstalled(installed).catch(rollbackErr => this.logService.warn('[AIExtensions] Failed to restore installed registry after uninstall failure', rollbackErr));
+			await this.writeSourceManifest(removed).catch(rollbackErr => this.logService.warn('[AIExtensions] Failed to restore source manifest after uninstall failure', rollbackErr));
+			this._onDidChange.fire();
+			throw err;
+		}
 		this._onDidChange.fire();
 	}
 
-	async enable(id: string): Promise<IAIExtensionDescriptor> {
-		return this.setEnablement(id, true);
+	enable(id: string): Promise<IAIExtensionDescriptor> {
+		return this.queueMutation(() => this.setEnablement(id, true));
 	}
 
-	async disable(id: string): Promise<IAIExtensionDescriptor> {
-		return this.setEnablement(id, false);
+	disable(id: string): Promise<IAIExtensionDescriptor> {
+		return this.queueMutation(() => this.setEnablement(id, false));
 	}
 
-	async update(id: string): Promise<IAIExtensionDescriptor> {
+	update(id: string): Promise<IAIExtensionDescriptor> {
+		return this.queueMutation(() => this.doUpdate(id));
+	}
+
+	private async doUpdate(id: string): Promise<IAIExtensionDescriptor> {
 		const installed = await this.readInstalled();
 		const existing = installed.find(candidate => candidate.id === id);
 		if (!existing) {
@@ -575,12 +653,22 @@ export class AIExtensionsWorkbenchService extends Disposable implements IAIExten
 			updatedAt: now,
 		};
 		await this.writeInstalled(installed.map(item => item.id === id ? updated : item));
-		await this.writeSourceManifest(updated);
+		try {
+			await this.writeSourceManifest(updated);
+		} catch (err) {
+			await this.writeInstalled(installed).catch(rollbackErr => this.logService.warn('[AIExtensions] Failed to restore installed registry after update failure', rollbackErr));
+			await this.writeSourceManifest(existing).catch(rollbackErr => this.logService.warn('[AIExtensions] Failed to restore source manifest after update failure', rollbackErr));
+			throw err;
+		}
 		this._onDidChange.fire();
 		return this.toDescriptor(updated);
 	}
 
-	async trust(id: string): Promise<IAIExtensionDescriptor> {
+	trust(id: string): Promise<IAIExtensionDescriptor> {
+		return this.queueMutation(() => this.doTrust(id));
+	}
+
+	private async doTrust(id: string): Promise<IAIExtensionDescriptor> {
 		const installed = await this.readInstalled();
 		const existing = installed.find(item => item.id === id);
 		if (!existing) {
@@ -595,7 +683,11 @@ export class AIExtensionsWorkbenchService extends Disposable implements IAIExten
 		return this.toDescriptor(updated);
 	}
 
-	async sync(): Promise<IAIExtensionsOverlay> {
+	sync(): Promise<IAIExtensionsOverlay> {
+		return this.queueMutation(() => this.doSync());
+	}
+
+	private async doSync(): Promise<IAIExtensionsOverlay> {
 		const overlay = await this.getOpenCodeOverlay();
 		const installed = await this.prepareInstalledForSync(await this.readInstalled());
 		const enabled = installed.filter(item => item.enabled && item.trusted);
@@ -616,7 +708,7 @@ export class AIExtensionsWorkbenchService extends Disposable implements IAIExten
 					const safeName = stableName(skill.name);
 					this.assertUnique(names, `skill:${safeName}`);
 				}
-				const extensionRoot = this.extensionRootForItem(tempConfigDir, item);
+				const extensionRoot = this.extensionRootForItem(overlay.configDir, item);
 				for (const server of item.contributions.mcp ?? []) {
 					const safeName = stableName(server.name);
 					this.assertUnique(names, `mcp:${safeName}`);
@@ -690,8 +782,9 @@ export class AIExtensionsWorkbenchService extends Disposable implements IAIExten
 				configFile: overlay.configFile.toString(),
 				enabledCount: enabled.length,
 				error: message,
-			});
-			await this.writeInstalled(installed.map(item => enabledIds.has(item.id) ? { ...item, syncState: { status: 'failed', syncedAt, error: message }, updatedAt: syncedAt } : item));
+			}).catch(stateErr => this.logService.warn('[AIExtensions] Failed to persist sync failure state', stateErr));
+			await this.writeInstalled(installed.map(item => enabledIds.has(item.id) ? { ...item, syncState: { status: 'failed', syncedAt, error: message }, updatedAt: syncedAt } : item))
+				.catch(stateErr => this.logService.warn('[AIExtensions] Failed to persist installed sync failure state', stateErr));
 			this._onDidChange.fire();
 			throw err;
 		}
@@ -721,10 +814,14 @@ export class AIExtensionsWorkbenchService extends Disposable implements IAIExten
 		}
 		const updated = { ...existing, enabled, updatedAt: Date.now() };
 		await this.writeInstalled(installed.map(item => item.id === id ? updated : item));
-		await this.sync();
+		await this.doSync();
 		const refreshed = (await this.readInstalled()).find(item => item.id === id) ?? updated;
 		this._onDidChange.fire();
 		return this.toDescriptor(refreshed);
+	}
+
+	private queueMutation<T>(factory: () => Promise<T>): Promise<T> {
+		return this.mutationQueue.queue(factory) as Promise<T>;
 	}
 
 	private async marketplaceDescriptors(): Promise<readonly IAIExtensionDescriptor[]> {
@@ -891,7 +988,9 @@ export class AIExtensionsWorkbenchService extends Disposable implements IAIExten
 		if (!server?.name || !name) {
 			return undefined;
 		}
-		const remote = server.remotes?.find(candidate => isHttpsUrl(candidate.url));
+		const httpsRemotes = server.remotes?.filter(candidate => isHttpsUrl(candidate.url)) ?? [];
+		const remote = httpsRemotes.find(candidate => !candidate.headers?.some(header => header.isRequired));
+		const requiredHeaders = httpsRemotes.flatMap(candidate => candidate.headers?.filter(header => header.isRequired).map(header => header.name).filter(isNonEmptyString) ?? []);
 		const remoteUrl = remote?.url;
 		const installable = !!remoteUrl;
 		const contributions = remoteUrl ? {
@@ -914,7 +1013,9 @@ export class AIExtensionsWorkbenchService extends Disposable implements IAIExten
 			iconUrl: githubAvatarUrl(githubRepoFromUrl(server.repository?.url) ?? ''),
 			type: 'mcp',
 			description: server.description || localize('aiExtensions.mcp.description', "MCP server from an accessible marketplace."),
-			risk: localize('aiExtensions.mcp.risk', "MCP servers can expose tools and external data access. Review the server source and required configuration before installing."),
+			risk: requiredHeaders.length && !installable
+				? localize('aiExtensions.mcp.requiredHeadersRisk', "This server requires credentials in HTTP headers ({0}). Credential configuration is not available in the IDE yet, so this entry is view-only.", requiredHeaders.join(', '))
+				: localize('aiExtensions.mcp.risk', "MCP servers can expose tools and external data access. Review the server source and required configuration before installing."),
 			installable,
 			installState: installable ? 'notInstalled' : 'viewOnly',
 			installedByIde: false,
@@ -923,7 +1024,13 @@ export class AIExtensionsWorkbenchService extends Disposable implements IAIExten
 			updateState: 'unknown',
 			syncStatus: 'notSynced',
 			needsRuntimeRefresh: false,
-			detail: [marketplace.label, server.name, server.repository?.url, remote?.type].filter(isNonEmptyString).join(' / '),
+			detail: [
+				marketplace.label,
+				server.name,
+				server.repository?.url,
+				remote?.type,
+				requiredHeaders.length && !installable ? localize('aiExtensions.mcp.requiredHeadersDetail', "Requires header configuration: {0}", requiredHeaders.join(', ')) : undefined,
+			].filter(isNonEmptyString).join(' / '),
 			contributions,
 		};
 	}
@@ -1387,6 +1494,7 @@ export class AIExtensionsWorkbenchService extends Disposable implements IAIExten
 		if (!entry.name) {
 			return undefined;
 		}
+		const installable = !!(remotePluginGitHubRepo(entry.source, entry.homepage) ?? marketplace.repo);
 		return {
 			id: `marketplace.plugin.${stableName(label)}.${stableName(entry.name)}`,
 			name: entry.name,
@@ -1403,8 +1511,8 @@ export class AIExtensionsWorkbenchService extends Disposable implements IAIExten
 			type: 'plugin',
 			description: entry.description || localize('aiExtensions.plugin.description', "Plugin from an accessible marketplace."),
 			risk: localize('aiExtensions.plugin.risk', "Plugins may execute code. Installed plugins stay disabled by default for now."),
-			installable: true,
-			installState: 'notInstalled',
+			installable,
+			installState: installable ? 'notInstalled' : 'viewOnly',
 			installedByIde: false,
 			enabled: false,
 			installScope: 'profile',
@@ -1415,6 +1523,7 @@ export class AIExtensionsWorkbenchService extends Disposable implements IAIExten
 			sourceMetadata: {
 				source: entry.source,
 				marketplaceRepo: marketplace.repo,
+				skills: entry.skills,
 			} satisfies IRemotePluginSourceMetadata,
 			contributions: {
 				plugins: [{ name: entry.name }],
@@ -1445,7 +1554,7 @@ export class AIExtensionsWorkbenchService extends Disposable implements IAIExten
 			enabled: item.enabled,
 			trusted: item.trusted,
 			installScope: 'profile',
-			updateState: 'latest',
+			updateState: 'unknown',
 			syncStatus: item.syncState.status,
 			syncError: item.syncState.error,
 			lastSyncedAt: item.syncState.syncedAt,
@@ -1497,13 +1606,14 @@ export class AIExtensionsWorkbenchService extends Disposable implements IAIExten
 	private async fetchClaudePluginBundle(item: IAIExtensionDescriptor): Promise<IAIExtensionDescriptor['contributions']> {
 		const metadata = remotePluginSourceMetadata(item.sourceMetadata);
 		const source = metadata?.source;
-		const repo = remotePluginGitHubRepo(source, item.homepage);
+		const repo = remotePluginGitHubRepo(source, item.homepage) ?? metadata?.marketplaceRepo;
 		if (!repo) {
 			return {};
 		}
 		const ref = typeof source === 'object' ? source.sha || source.ref || 'HEAD' : 'HEAD';
-		const skills = await this.fetchClaudePluginSkills(repo, ref, item.name);
-		const mcp = await this.fetchClaudePluginMcp(repo, ref);
+		const rootPath = remotePluginRootPath(source);
+		const skills = await this.fetchClaudePluginSkills(repo, ref, rootPath, item.name, metadata?.skills ?? []);
+		const mcp = await this.fetchClaudePluginMcp(repo, ref, rootPath);
 		return {
 			...(skills.length ? { skills } : {}),
 			...(mcp.servers.length ? { mcp: mcp.servers } : {}),
@@ -1511,26 +1621,52 @@ export class AIExtensionsWorkbenchService extends Disposable implements IAIExten
 		};
 	}
 
-	private async fetchClaudePluginSkills(repo: string, ref: string, name: string): Promise<NonNullable<IAIExtensionDescriptor['contributions']['skills']>> {
-		const candidates = claudePluginSkillCandidates(repo, ref, name);
-		const raw = await this.fetchFirstSkillCandidate(candidates);
-		if (!raw.skill.content) {
-			return [];
-		}
-		return [{
-			name: raw.skill.name || name,
-			content: raw.skill.content,
-		}];
+	private async fetchClaudePluginSkills(repo: string, ref: string, rootPath: string, name: string, declaredSkills: readonly string[]): Promise<NonNullable<IAIExtensionDescriptor['contributions']['skills']>> {
+		const declared = claudePluginDeclaredSkillPaths(rootPath, declaredSkills)
+			.map(path => `https://raw.githubusercontent.com/${repo}/${ref}/${path}`);
+		const discovered = declared.length ? declared : await this.fetchClaudePluginSkillCandidates(repo, ref, rootPath);
+		const candidates = discovered.length ? discovered : claudePluginSkillCandidates(repo, ref, rootPath, name);
+		const skills = await Promise.all(candidates.map(async candidate => ({ candidate, skill: await this.fetchSkillFromUrl(candidate) })));
+		const seen = new Set<string>();
+		return skills.flatMap(({ candidate, skill }) => {
+			if (!skill.content) {
+				return [];
+			}
+			const skillName = skill.name || skillNameFromPath(parentPath(candidate.replace(/^.*\/skills\//, '')) ?? name);
+			const key = `${stableName(skillName)}\u0000${skill.content}`;
+			if (seen.has(key)) {
+				return [];
+			}
+			seen.add(key);
+			return [{ name: skillName, content: skill.content }];
+		});
 	}
 
-	private async fetchClaudePluginMcp(repo: string, ref: string): Promise<{
+	private async fetchClaudePluginSkillCandidates(repo: string, ref: string, rootPath: string): Promise<readonly string[]> {
+		const skillsPath = joinMarketplacePath(rootPath, 'skills');
+		const html = await this.fetchTextFromUrl(`https://github.com/${repo}/tree/${ref}/${skillsPath}`);
+		return html ? githubDirectoryPaths(html).map(path => `https://raw.githubusercontent.com/${repo}/${ref}/${path}/SKILL.md`) : [];
+	}
+
+	private async fetchClaudePluginMcp(repo: string, ref: string, rootPath: string): Promise<{
 		readonly servers: NonNullable<IAIExtensionDescriptor['contributions']['mcp']>;
 		readonly files: NonNullable<IAIExtensionDescriptor['contributions']['files']>;
 	}> {
-		const json = await this.fetchJsonFromUrl<IClaudePluginMcpJson>(`https://raw.githubusercontent.com/${repo}/${ref}/.mcp.json`);
+		const mcpPath = joinMarketplacePath(rootPath, '.mcp.json');
+		const json = await this.fetchJsonFromUrl<unknown>(`https://raw.githubusercontent.com/${repo}/${ref}/${mcpPath}`);
 		const servers: IAIExtensionMcpContribution[] = [];
-		const files = new Map<string, string>();
-		for (const [name, server] of Object.entries(json?.mcpServers ?? {})) {
+		for (const [name, server] of Object.entries(claudePluginMcpServers(json))) {
+			if (server.url && isHttpsUrl(server.url)) {
+				servers.push({
+					name,
+					config: {
+						type: McpServerType.REMOTE,
+						url: server.url,
+						headers: server.headers,
+					},
+				});
+				continue;
+			}
 			if (!server.command) {
 				continue;
 			}
@@ -1538,13 +1674,11 @@ export class AIExtensionsWorkbenchService extends Disposable implements IAIExten
 			const referenced = [
 				normalizeClaudePluginRootPath(server.command),
 				...args.map(arg => normalizeClaudePluginRootPath(arg)),
+				normalizeClaudePluginRootPath(server.cwd ?? ''),
 			].filter(isDefined);
-			for (const path of referenced) {
-				await this.fetchClaudePluginFile(repo, ref, path, files);
-				const dirname = parentPath(path);
-				if (dirname) {
-					await this.fetchClaudePluginFile(repo, ref, `${dirname}/package.json`, files);
-				}
+			if (referenced.length || server.cwd) {
+				this.logService.debug(`[AIExtensions] Skipping local MCP ${name} from ${repo}: repository-backed commands and custom working directories require a complete plugin bundle.`);
+				continue;
 			}
 			servers.push({
 				name,
@@ -1553,22 +1687,10 @@ export class AIExtensionsWorkbenchService extends Disposable implements IAIExten
 					command: normalizeClaudePluginRootPath(server.command) ?? server.command,
 					args,
 					env: server.env,
-					cwd: '${AI_EXTENSION_ROOT}',
 				},
 			});
 		}
-		return { servers, files: [...files.entries()].map(([path, content]) => ({ path, content })) };
-	}
-
-	private async fetchClaudePluginFile(repo: string, ref: string, path: string, files: Map<string, string>): Promise<void> {
-		const safePath = safeContributionPath(path);
-		if (!safePath || files.has(safePath)) {
-			return;
-		}
-		const content = await this.fetchTextFromUrl(`https://raw.githubusercontent.com/${repo}/${ref}/${safePath}`);
-		if (content !== undefined) {
-			files.set(safePath, content);
-		}
+		return { servers, files: [] };
 	}
 
 	private async fetchTextFromUrl(url: string): Promise<string | undefined> {
@@ -1621,10 +1743,19 @@ export class AIExtensionsWorkbenchService extends Disposable implements IAIExten
 	}
 
 	private async writeInstalled(items: readonly IStoredAIExtension[]): Promise<void> {
-		await this.writeText(joinPath(this.installRoot(), InstalledRegistryName), JSON.stringify({
+		const root = this.installRoot();
+		const target = joinPath(root, InstalledRegistryName);
+		const temp = joinPath(root, InstalledRegistryTempName);
+		await this.writeText(temp, JSON.stringify({
 			version: InstalledRegistryVersion,
 			items,
 		}, null, 2));
+		try {
+			await this.fileService.move(temp, target, true);
+		} catch (err) {
+			await this.fileService.del(temp, { useTrash: false }).catch(() => undefined);
+			throw err;
+		}
 	}
 
 	private async writeSourceManifest(item: IStoredAIExtension): Promise<void> {
@@ -1870,17 +2001,17 @@ function resolveIconUrl(fallbackRepo: string | undefined, entry: IRemoteMarketpl
 
 function remoteEntryGitHubRepo(entry: IRemoteMarketplaceEntry): string | undefined {
 	if (typeof entry.source !== 'string' && entry.source?.repo) {
-		return entry.source.repo;
+		return githubRepositorySlug(entry.source.repo);
 	}
 	const url = typeof entry.source !== 'string' ? entry.source?.url : undefined;
-	return githubRepoFromUrl(url) ?? githubRepoFromUrl(entry.homepage);
+	return githubRepositorySlug(url) ?? githubRepositorySlug(entry.homepage);
 }
 
 function remotePluginGitHubRepo(source: string | IRemoteMarketplaceSource | undefined, homepage: string | undefined): string | undefined {
 	if (typeof source === 'string') {
-		return githubRepoFromUrl(source) ?? githubRepoFromUrl(homepage);
+		return githubRepositorySlug(source) ?? githubRepositorySlug(homepage);
 	}
-	return githubRepoFromUrl(source?.url) ?? source?.repo ?? githubRepoFromUrl(homepage);
+	return githubRepositorySlug(source?.url) ?? githubRepositorySlug(source?.repo) ?? githubRepositorySlug(homepage);
 }
 
 function githubRawUrlFromTree(value: string, branchOverride: string | undefined, skillFilePath: string | undefined): string | undefined {
@@ -1898,7 +2029,7 @@ function githubRawUrlFromTree(value: string, branchOverride: string | undefined,
 	return fullPath ? `https://raw.githubusercontent.com/${repo}/${branch}/${fullPath}` : undefined;
 }
 
-function claudePluginSkillCandidates(repo: string, ref: string, name: string): readonly string[] {
+function claudePluginSkillCandidates(repo: string, ref: string, rootPath: string, name: string): readonly string[] {
 	const candidates = new Set<string>();
 	for (const path of [
 		`skills/${name}/SKILL.md`,
@@ -1906,9 +2037,20 @@ function claudePluginSkillCandidates(repo: string, ref: string, name: string): r
 		`.claude/skills/${name}/SKILL.md`,
 		`.claude/skills/${stableName(name)}/SKILL.md`,
 	]) {
-		candidates.add(`https://raw.githubusercontent.com/${repo}/${ref}/${normalizeMarketplacePath(path)}`);
+		candidates.add(`https://raw.githubusercontent.com/${repo}/${ref}/${joinMarketplacePath(rootPath, path)}`);
 	}
 	return [...candidates];
+}
+
+function remotePluginRootPath(source: string | IRemoteMarketplaceSource | undefined): string {
+	if (typeof source === 'string') {
+		return githubRepoFromUrl(source) ? '' : safeContributionPath(source) ?? '';
+	}
+	return source?.path ? safeContributionPath(source.path) ?? '' : '';
+}
+
+function joinMarketplacePath(...parts: readonly string[]): string {
+	return parts.map(normalizeMarketplacePath).filter(Boolean).join('/');
 }
 
 function remoteSkillCandidates(marketplace: IRemoteMarketplaceDefinition, skillPath: string): readonly string[] {
@@ -2108,7 +2250,8 @@ function isRemotePluginSourceMetadata(value: unknown): value is IRemotePluginSou
 		return false;
 	}
 	const candidate = value as Partial<IRemotePluginSourceMetadata>;
-	return candidate.source !== undefined || typeof candidate.marketplaceRepo === 'string';
+	return (candidate.source !== undefined || typeof candidate.marketplaceRepo === 'string')
+		&& (candidate.skills === undefined || (Array.isArray(candidate.skills) && candidate.skills.every(item => typeof item === 'string')));
 }
 
 function createRemoteSkillSourceMetadata(skillCandidates: readonly string[]): IRemoteSkillSourceMetadata | undefined {

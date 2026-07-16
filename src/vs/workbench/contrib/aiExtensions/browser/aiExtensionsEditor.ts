@@ -6,7 +6,10 @@
 import * as dom from '../../../../base/browser/dom.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Dimension } from '../../../../base/browser/dom.js';
+import Severity from '../../../../base/common/severity.js';
 import { localize } from '../../../../nls.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
@@ -15,7 +18,7 @@ import { EditorPane } from '../../../browser/parts/editor/editorPane.js';
 import { IEditorOpenContext } from '../../../common/editor.js';
 import { IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
-import { IAIExtensionDescriptor, IAIExtensionsWorkbenchService } from '../common/aiExtensions.js';
+import { AIExtensionsApplyCommandId, IAIExtensionDescriptor, IAIExtensionsWorkbenchService } from '../common/aiExtensions.js';
 import { contributionLines, enablementLabel, installStateLabel, syncStateLabel, typeLabel } from './aiExtensionsLabels.js';
 import { AIExtensionEditorInput } from './aiExtensionsEditorInput.js';
 
@@ -31,7 +34,9 @@ export class AIExtensionEditor extends EditorPane {
 	private dimension: Dimension | undefined;
 	private actionButtons: HTMLButtonElement[] = [];
 	private busy = false;
+	private inspectingId: string | undefined;
 	private actionInProgress = false;
+	private renderedItem: IAIExtensionDescriptor | undefined;
 
 	constructor(
 		group: IEditorGroup,
@@ -40,6 +45,8 @@ export class AIExtensionEditor extends EditorPane {
 		@IStorageService storageService: IStorageService,
 		@IAIExtensionsWorkbenchService private readonly aiExtensionsService: IAIExtensionsWorkbenchService,
 		@INotificationService private readonly notificationService: INotificationService,
+		@ICommandService private readonly commandService: ICommandService,
+		@IDialogService private readonly dialogService: IDialogService,
 	) {
 		super(AIExtensionEditor.ID, group, telemetryService, themeService, storageService);
 		this._register(this.aiExtensionsService.onDidChange(() => {
@@ -58,7 +65,27 @@ export class AIExtensionEditor extends EditorPane {
 
 	override async setInput(input: AIExtensionEditorInput, options: IEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 		await super.setInput(input, options, context, token);
+		if (!needsPluginInspection(input.item)) {
+			await this.render(input.item);
+			return;
+		}
+		this.inspectingId = input.item.id;
 		await this.render(input.item);
+		try {
+			const inspected = await this.aiExtensionsService.inspect(input.item.id);
+			if (this.input === input) {
+				await this.render(inspected);
+			}
+		} catch (err) {
+			this.notificationService.error(err);
+		} finally {
+			if (this.inspectingId === input.item.id) {
+				this.inspectingId = undefined;
+			}
+			if (this.input === input && this.renderedItem) {
+				await this.render(this.renderedItem);
+			}
+		}
 	}
 
 	override focus(): void {
@@ -88,6 +115,7 @@ export class AIExtensionEditor extends EditorPane {
 			return;
 		}
 		const root = this.template.root;
+		this.renderedItem = item;
 		this.actionButtons = [];
 		dom.clearNode(root);
 		root.classList.toggle('narrow', this.dimension !== undefined && this.dimension.width < 640);
@@ -179,6 +207,11 @@ export class AIExtensionEditor extends EditorPane {
 	}
 
 	private renderActions(container: HTMLElement, item: IAIExtensionDescriptor): void {
+		if (this.inspectingId === item.id) {
+			const inspecting = dom.append(container, dom.$('span.ai-extension-editor-action-note'));
+			inspecting.textContent = localize('aiExtensions.action.inspecting', "Checking compatibility…");
+			return;
+		}
 		if (!item.installedByIde && item.installable) {
 			this.renderAction(container, item.id, 'install', localize('aiExtensions.action.install', "Install"));
 		}
@@ -191,7 +224,9 @@ export class AIExtensionEditor extends EditorPane {
 			} else {
 				this.renderAction(container, item.id, item.enabled ? 'disable' : 'enable', item.enabled ? localize('aiExtensions.action.disable', "Disable") : localize('aiExtensions.action.enable', "Enable"));
 			}
-			this.renderAction(container, item.id, 'update', localize('aiExtensions.action.update', "Update"));
+			if (item.updateState === 'available') {
+				this.renderAction(container, item.id, 'update', localize('aiExtensions.action.update', "Update"));
+			}
 			this.renderAction(container, item.id, 'sync', localize('aiExtensions.action.sync', "Apply Again"));
 			this.renderAction(container, item.id, 'uninstall', localize('aiExtensions.action.uninstall', "Uninstall"), true);
 		}
@@ -218,8 +253,14 @@ export class AIExtensionEditor extends EditorPane {
 			return;
 		}
 		this.busy = true;
-		this.actionInProgress = true;
 		this.setActionBusy(true);
+		const item = this.renderedItem;
+		if (!item || !await this.confirmAction(action, item)) {
+			this.busy = false;
+			this.setActionBusy(false);
+			return;
+		}
+		this.actionInProgress = true;
 		try {
 			switch (action) {
 				case 'install':
@@ -241,7 +282,7 @@ export class AIExtensionEditor extends EditorPane {
 					await this.aiExtensionsService.update(id);
 					break;
 				case 'sync':
-					await this.aiExtensionsService.sync();
+					await this.commandService.executeCommand(AIExtensionsApplyCommandId);
 					break;
 			}
 		} catch (err) {
@@ -254,6 +295,31 @@ export class AIExtensionEditor extends EditorPane {
 		}
 	}
 
+	private async confirmAction(action: string, item: IAIExtensionDescriptor): Promise<boolean> {
+		if (action !== 'install' && action !== 'trust' && action !== 'uninstall') {
+			return true;
+		}
+		const uninstall = action === 'uninstall';
+		const trust = action === 'trust';
+		const result = await this.dialogService.confirm({
+			type: uninstall ? Severity.Warning : Severity.Info,
+			message: uninstall
+				? localize('aiExtensions.confirmUninstall', "Uninstall {0}?", item.name)
+				: trust
+					? localize('aiExtensions.confirmTrust', "Trust {0} from {1}?", item.name, item.sourceLabel)
+					: localize('aiExtensions.confirmInstall', "Install {0} from {1}?", item.name, item.sourceLabel),
+			detail: uninstall
+				? localize('aiExtensions.confirmUninstallDetail', "The IDE-managed copy will be removed. Apply AI extensions afterward to reload OpenCode without this capability.")
+				: item.risk,
+			primaryButton: uninstall
+				? localize('aiExtensions.confirmUninstallButton', "Uninstall")
+				: trust
+					? localize('aiExtensions.confirmTrustButton', "Trust Source")
+					: localize('aiExtensions.confirmInstallButton', "Install"),
+		});
+		return result.confirmed;
+	}
+
 	private setActionBusy(busy: boolean): void {
 		const root = this.template?.root;
 		if (!root) {
@@ -264,6 +330,16 @@ export class AIExtensionEditor extends EditorPane {
 			button.disabled = busy;
 		}
 	}
+}
+
+function needsPluginInspection(item: IAIExtensionDescriptor): boolean {
+	return item.type === 'plugin'
+		&& !item.installedByIde
+		&& item.installable
+		&& !(item.contributions.skills?.length
+			|| item.contributions.mcp?.length
+			|| item.contributions.files?.length
+			|| item.contributions.plugins?.some(plugin => plugin.content || plugin.npm));
 }
 
 function iconClass(item: IAIExtensionDescriptor): string {

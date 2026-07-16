@@ -18,7 +18,7 @@ import { DocumentSymbol, symbolKindNames } from '../../../../editor/common/langu
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { IMarkerService, MarkerSeverity } from '../../../../platform/markers/common/markers.js';
-import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { CommandsRegistry, ICommandService } from '../../../../platform/commands/common/commands.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { InputFocusedContext } from '../../../../platform/contextkey/common/contextkeys.js';
 import { KeybindingsRegistry, KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
@@ -75,7 +75,7 @@ import {
 	OpenCodeAIExtensionsSyncResult,
 } from './opencodeProtocol.js';
 import { OpenCodeViewId } from './views/opencodeView.js';
-import { IAIExtensionDescriptor, IAIExtensionsWorkbenchService } from '../../aiExtensions/common/aiExtensions.js';
+import { AIExtensionsApplyCommandId, IAIExtensionDescriptor, IAIExtensionsWorkbenchService } from '../../aiExtensions/common/aiExtensions.js';
 
 const OpenCodeSelectionCommandId = 'workbench.action.openCode.addSelection';
 const OpenCodeCurrentSessionStorageKey = 'opencode.currentSession';
@@ -98,6 +98,7 @@ class OpenCodeWebviewContribution extends Disposable implements IWorkbenchContri
 
 	static readonly ID = 'workbench.contrib.openCodeWebview';
 	private view: WebviewView | undefined;
+	private applyAIExtensionsInFlight: Promise<OpenCodeAIExtensionsSyncResult> | undefined;
 	private lastContextSnapshot: string | undefined;
 	private sessionScopeRoot: string | undefined;
 	private lastTaskSnapshot: OpenCodeTaskSnapshotDto | null = null;
@@ -418,7 +419,7 @@ class OpenCodeWebviewContribution extends Disposable implements IWorkbenchContri
 		}
 
 		if (value.method === 'aiExtensions.sync') {
-			return this.syncAIExtensions();
+			return this.applyAIExtensions();
 		}
 
 		if (value.method === 'editor.open') {
@@ -441,7 +442,16 @@ class OpenCodeWebviewContribution extends Disposable implements IWorkbenchContri
 		};
 	}
 
-	private async syncAIExtensions(): Promise<OpenCodeAIExtensionsSyncResult> {
+	applyAIExtensions(): Promise<OpenCodeAIExtensionsSyncResult> {
+		if (!this.applyAIExtensionsInFlight) {
+			this.applyAIExtensionsInFlight = this.doApplyAIExtensions().finally(() => {
+				this.applyAIExtensionsInFlight = undefined;
+			});
+		}
+		return this.applyAIExtensionsInFlight;
+	}
+
+	private async doApplyAIExtensions(): Promise<OpenCodeAIExtensionsSyncResult> {
 		const overlay = await this.aiExtensionsService.sync();
 		if (this.host.state.phase !== OpenCodeHostPhase.Running || !this.host.state.owned) {
 			return toAIExtensionsSyncResult(overlay);
@@ -1354,6 +1364,13 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 
 		void accessor.get(IViewsService).openView(OpenCodeViewId, true);
 	},
+});
+
+CommandsRegistry.registerCommand(AIExtensionsApplyCommandId, accessor => {
+	if (current) {
+		return current.applyAIExtensions();
+	}
+	return accessor.get(IAIExtensionsWorkbenchService).sync().then(toAIExtensionsSyncResult);
 });
 
 registerWorkbenchContribution2(OpenCodeWebviewContribution.ID, OpenCodeWebviewContribution, WorkbenchPhase.AfterRestored);

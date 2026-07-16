@@ -15,6 +15,8 @@ export type AIExtensionInstallState = 'notInstalled' | 'installed' | 'viewOnly' 
 export type AIExtensionUpdateState = 'unknown' | 'latest' | 'available';
 export type AIExtensionSyncStatus = 'notSynced' | 'pending' | 'success' | 'failed';
 
+export const AIExtensionsApplyCommandId = 'workbench.action.openCode.applyAIExtensions';
+
 export interface IAIExtensionSkillContribution {
 	readonly name: string;
 	readonly content: string;
@@ -93,6 +95,7 @@ export interface IAIExtensionsWorkbenchService {
 	list(): Promise<readonly IAIExtensionDescriptor[]>;
 	refresh(): Promise<readonly IAIExtensionDescriptor[]>;
 	installed(): Promise<readonly IAIExtensionDescriptor[]>;
+	inspect(id: string): Promise<IAIExtensionDescriptor>;
 	install(id: string): Promise<IAIExtensionDescriptor>;
 	uninstall(id: string): Promise<void>;
 	enable(id: string): Promise<IAIExtensionDescriptor>;
