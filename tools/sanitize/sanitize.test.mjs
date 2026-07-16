@@ -31,6 +31,8 @@ test('release workflow treats manual product versions as data', () => {
 	assert.match(workflow, /opencode_sha: \$\{\{ steps\.opencode-revision\.outputs\.sha \}\}/);
 	assert.match(workflow, /ref: \$\{\{ needs\.plan\.outputs\.opencode_sha \}\}/);
 	assert.match(workflow, /node tools\/validate-opencode-runtime\.mjs --root=opencode-source/);
+	assert.equal((workflow.match(/key: \$\{\{ runner\.os \}\}-\$\{\{ runner\.arch \}\}-opencode-bun-\$\{\{ hashFiles\('opencode-source\/\*\*\/bun\.lock'\) \}\}/g) || []).length, 2);
+	assert.doesNotMatch(workflow, /restore-keys:[\s\S]*?opencode-bun-/);
 	assert.ok(workflow.indexOf('Validate OpenCode runtime dependency contract') < workflow.indexOf('Resolve OpenCode runtime revision'));
 	assert.doesNotMatch(workflow, /ref: \$\{\{ env\.OPENCODE_REF \}\}\r?\n          path: opencode-source\r?\n          fetch-depth: 0/);
 	assert.match(workflow, /Refuse to overwrite an existing release/);

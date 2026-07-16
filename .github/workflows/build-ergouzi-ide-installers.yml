@@ -230,9 +230,7 @@ jobs:
         uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: ${{ steps.opencode-bun-cache-dir.outputs.dir }}
-          key: ${{ runner.os }}-opencode-bun-${{ hashFiles('opencode-source/**/bun.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-opencode-bun-
+          key: ${{ runner.os }}-${{ runner.arch }}-opencode-bun-${{ hashFiles('opencode-source/**/bun.lock') }}
 
       - name: Install OpenCode Python compatibility dependencies
         shell: bash
@@ -248,7 +246,7 @@ jobs:
         uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: ${{ steps.opencode-bun-cache-dir.outputs.dir }}
-          key: ${{ runner.os }}-opencode-bun-${{ hashFiles('opencode-source/**/bun.lock') }}
+          key: ${{ runner.os }}-${{ runner.arch }}-opencode-bun-${{ hashFiles('opencode-source/**/bun.lock') }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
