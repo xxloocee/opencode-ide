@@ -265,6 +265,7 @@ jobs:
       - name: Install Ergouzi IDE dependencies
         shell: bash
         env:
+          GITHUB_TOKEN: ${{ github.token }}
           OPENCODE_CLEAN_RELEASE_SKIP_COPILOT_INSTALL: "1"
         run: npm ci
 
