@@ -69,7 +69,6 @@ export class PanelPart extends AbstractPaneCompositePart {
 
 	/** Visual margin values for the card-like appearance */
 	static readonly MARGIN_TOP = 5;
-	static readonly MARGIN_LEFT = 10;
 
 	constructor(
 		@INotificationService notificationService: INotificationService,
@@ -84,7 +83,7 @@ export class PanelPart extends AbstractPaneCompositePart {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IExtensionService extensionService: IExtensionService,
 		@IMenuService menuService: IMenuService,
-		@IConfigurationService private readonly configurationService: IConfigurationService
+		@IConfigurationService configurationService: IConfigurationService
 	) {
 		super(
 			Parts.PANEL_PART,
@@ -111,6 +110,7 @@ export class PanelPart extends AbstractPaneCompositePart {
 			contextKeyService,
 			extensionService,
 			menuService,
+			configurationService,
 		);
 
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
@@ -178,9 +178,8 @@ export class PanelPart extends AbstractPaneCompositePart {
 		// The right and bottom gutters are provided by the workbench grid; the 5px top
 		// margin pairs with the top row's MARGIN_BOTTOM to center the sash.
 		const borderTotal = 2; // 1px border on each side
-		const marginLeft = this.layoutService.isVisible(Parts.SIDEBAR_PART) ? 0 : PanelPart.MARGIN_LEFT;
 		super.layout(
-			width - marginLeft - borderTotal,
+			width - borderTotal,
 			height - PanelPart.MARGIN_TOP - borderTotal,
 			top, left
 		);
