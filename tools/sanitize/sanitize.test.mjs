@@ -352,6 +352,43 @@ test('apply clean-full defaults startup editor to none', () => {
 	assert.doesNotMatch(text, /'workbench\.startupEditor': \{[\s\S]*?'default': 'welcomePage'/);
 });
 
+test('apply clean-full removes official Copilot dependencies from desktop and remote manifests', () => {
+	const root = makeFixtureRoot({ includeCoreWorkbenchChatEntry: true });
+	for (const rel of ['package.json', 'remote/package.json']) {
+		const file = path.join(root, ...rel.split('/'));
+		const manifest = JSON.parse(fs.readFileSync(file, 'utf8'));
+		Object.assign(manifest.dependencies, {
+			'@github/copilot': '1.0.0',
+			'@github/copilot-sdk': '1.0.0',
+			'@vscode/copilot-api': '1.0.0',
+		});
+		writeJson(file, manifest);
+	}
+
+	const result = runNode(applyScript, `--root=${root}`, '--profile=clean-full');
+
+	assert.equal(result.status, 0, result.stderr + result.stdout);
+	for (const rel of ['package.json', 'remote/package.json']) {
+		const dependencies = JSON.parse(fs.readFileSync(path.join(root, ...rel.split('/')), 'utf8')).dependencies;
+		assert.equal(dependencies['@github/copilot'], undefined, rel);
+		assert.equal(dependencies['@github/copilot-sdk'], undefined, rel);
+		assert.equal(dependencies['@vscode/copilot-api'], undefined, rel);
+	}
+});
+
+test('verify clean-full rejects an official Copilot dependency left only in the remote manifest', () => {
+	const root = makeFixtureRoot({ includeCoreWorkbenchChatEntry: true });
+	const remoteFile = path.join(root, 'remote', 'package.json');
+	const remote = JSON.parse(fs.readFileSync(remoteFile, 'utf8'));
+	remote.dependencies['@github/copilot'] = '1.0.0';
+	writeJson(remoteFile, remote);
+
+	const result = runNode(verifyScript, `--root=${root}`, '--profile=clean-full');
+
+	assert.notEqual(result.status, 0);
+	assert.match(result.stderr + result.stdout, /remote\/package\.json\.dependencies\.@github\/copilot/);
+});
+
 test('apply clean-full removes current Copilot packaging hooks while preserving shared native filters', () => {
 	const root = makeFixtureRoot({ includeCoreWorkbenchChatEntry: true });
 	const copilotImports = "import { ensureCopilotPlatformPackage, getCopilotExcludeFilter, getCopilotRuntimePrebuildFiles, getCopilotTgrepExcludeFilter, getMxcExcludeFilter, getRipgrepExcludeFilter, prepareBuiltInCopilotRipgrepShim } from './lib/copilot.ts';";
@@ -647,6 +684,12 @@ function makeFixtureRoot(options = {}) {
 			'sanitize:apply': 'node tools/sanitize/apply.mjs',
 			'sanitize:verify': 'node tools/sanitize/verify.mjs',
 		},
+		dependencies: {}
+	});
+	writeJson(path.join(root, 'remote', 'package.json'), {
+		name: 'vscode-reh',
+		version: '0.0.0',
+		private: true,
 		dependencies: {}
 	});
 

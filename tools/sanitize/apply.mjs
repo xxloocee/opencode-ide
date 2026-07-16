@@ -170,12 +170,21 @@ function rewritePackageJson() {
 		'sanitize:verify': 'node tools/sanitize/verify.mjs',
 	});
 
-	delete pkg.dependencies['@github/copilot'];
-	delete pkg.dependencies['@github/copilot-sdk'];
-	delete pkg.dependencies['@vscode/copilot-api'];
+	removeOfficialCopilotDependencies(pkg);
 
 	fs.writeFileSync(file, JSON.stringify(pkg, null, '  ') + '\n');
+
+	const remoteFile = path.join(root, 'remote', 'package.json');
+	const remotePkg = JSON.parse(fs.readFileSync(remoteFile, 'utf8'));
+	removeOfficialCopilotDependencies(remotePkg);
+	fs.writeFileSync(remoteFile, JSON.stringify(remotePkg, null, '  ') + '\n');
 	console.log('[sanitize] rewrite-package');
+}
+
+function removeOfficialCopilotDependencies(pkg) {
+	for (const depName of ['@github/copilot', '@github/copilot-sdk', '@vscode/copilot-api']) {
+		delete pkg.dependencies?.[depName];
+	}
 }
 
 function rewriteBuildForCopilotRemoval() {

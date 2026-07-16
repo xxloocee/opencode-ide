@@ -112,11 +112,17 @@ for (const [scriptName, expected] of [
 	}
 }
 
-const dependencyKeys = new Set(Object.keys(pkg.dependencies || {}));
-for (const depName of ['@github/copilot', '@github/copilot-sdk', '@vscode/copilot-api']) {
-	if (dependencyKeys.has(depName)) {
-		console.error(`[sanitize] failed: package.dependencies.${depName}`);
-		failed = true;
+
+for (const [rel, manifest] of [
+	['package.json', pkg],
+	['remote/package.json', JSON.parse(fs.readFileSync(path.join(root, 'remote', 'package.json'), 'utf8'))],
+]) {
+	const dependencyKeys = new Set(Object.keys(manifest.dependencies || {}));
+	for (const depName of ['@github/copilot', '@github/copilot-sdk', '@vscode/copilot-api']) {
+		if (dependencyKeys.has(depName)) {
+			console.error(`[sanitize] failed: ${rel}.dependencies.${depName}`);
+			failed = true;
+		}
 	}
 }
 
