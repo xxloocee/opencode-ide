@@ -259,7 +259,7 @@ function buildBundledOpenCodeRuntimeTask(platform: string, arch: string): task.T
 
 		const canBuildNatively = process.platform === platform && process.arch === arch;
 		const buildArgs = canBuildNatively
-			? ['run', '--cwd', openCodePackagePath, 'build', '--single']
+			? ['run', '--cwd', openCodePackagePath, 'build', '--single', '--skip-install']
 			: ['run', '--cwd', openCodePackagePath, 'build'];
 
 		const runBuild = (args: string[], onExit: (code: number | null) => void): void => {

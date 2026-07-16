@@ -90,6 +90,12 @@ test('Darwin post-package tasks use the compatibility app bundle path', () => {
 	}
 });
 
+test('native OpenCode runtime builds reuse the installed dependency graph', () => {
+	const gulpfile = fs.readFileSync(path.join(repoRoot, 'build', 'gulpfile.vscode.ts'), 'utf8');
+	assert.match(gulpfile, /\? \['run', '--cwd', openCodePackagePath, 'build', '--single', '--skip-install'\]/);
+	assert.match(gulpfile, /: \['run', '--cwd', openCodePackagePath, 'build'\]/);
+});
+
 test('release guide stages required implementation files and publishes from main', () => {
 	const guide = fs.readFileSync(path.join(repoRoot, 'docs', 'ergouzi-ide-release-plan.zh.md'), 'utf8');
 
