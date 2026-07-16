@@ -41,6 +41,7 @@ test('OpenCode clean patch set matches the current workbench entry points', () =
 	for (const patchName of [
 		'10-workbench-chat-and-account-entries.patch',
 		'20-default-account-null-service.patch',
+		'30-sessions-official-entry-removal.patch',
 	]) {
 		const patchFile = path.join(repoRoot, 'patches', 'opencode-clean', patchName);
 		const args = ['apply', '--check', '--ignore-whitespace', patchFile];
