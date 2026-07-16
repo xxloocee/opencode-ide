@@ -352,6 +352,50 @@ test('apply clean-full defaults startup editor to none', () => {
 	assert.doesNotMatch(text, /'workbench\.startupEditor': \{[\s\S]*?'default': 'welcomePage'/);
 });
 
+test('apply clean-full removes current Copilot packaging hooks while preserving shared native filters', () => {
+	const root = makeFixtureRoot({ includeCoreWorkbenchChatEntry: true });
+	const copilotImports = "import { ensureCopilotPlatformPackage, getCopilotExcludeFilter, getCopilotRuntimePrebuildFiles, getCopilotTgrepExcludeFilter, getMxcExcludeFilter, getRipgrepExcludeFilter, prepareBuiltInCopilotRipgrepShim } from './lib/copilot.ts';";
+	writeText(path.join(root, 'build', 'gulpfile.vscode.ts'), [
+		"import { compileNonNativeExtensionsBuildTask, compileCopilotExtensionBuildTask } from './gulpfile.extensions.ts';",
+		copilotImports,
+		'\t\tensureCopilotPlatformPackage(platform, arch);',
+		"\t\tconst copilotRuntimePrebuilds = gulp.src(getCopilotRuntimePrebuildFiles(platform, arch), { base: '.', dot: true, allowEmpty: true });",
+		'\t\tconst deps = es.merge(cleanedDeps, copilotRuntimePrebuilds, osProxyResolverPlatformPackage)',
+		'\t\t\t.pipe(filter(getCopilotExcludeFilter(platform, arch)))',
+		'\t\t\t.pipe(filter(getCopilotTgrepExcludeFilter(platform, arch)))',
+		'\t\t\t.pipe(filter(getRipgrepExcludeFilter(platform, arch)))',
+		'\t\t\t.pipe(filter(getMxcExcludeFilter(arch)));',
+		"\t\tconst builtInCopilotExtensionDir = path.join(appBase, 'extensions', 'copilot');",
+		'\t\tprepareBuiltInCopilotRipgrepShim(platform, arch, builtInCopilotExtensionDir, appNodeModulesDir);',
+		'\t\t\t\tcompileCopilotExtensionBuildTask,',
+		''
+	].join('\n'));
+	writeText(path.join(root, 'build', 'gulpfile.reh.ts'), [
+		"import { compileNonNativeExtensionsBuildTask, compileCopilotExtensionBuildTask } from './gulpfile.extensions.ts';",
+		copilotImports,
+		"\t\tensureCopilotPlatformPackage(platform, arch, 'remote/node_modules');",
+		"\t\tconst copilotRuntimePrebuilds = gulp.src(getCopilotRuntimePrebuildFiles(platform, arch, 'remote/node_modules'), { base: 'remote', dot: true, allowEmpty: true });",
+		'\t\tconst deps = es.merge(cleanedDeps, copilotRuntimePrebuilds)',
+		'\t\t\t.pipe(filter(getCopilotExcludeFilter(platform, arch)))',
+		'\t\t\t.pipe(filter(getCopilotTgrepExcludeFilter(platform, arch)))',
+		'\t\t\t.pipe(filter(getRipgrepExcludeFilter(platform, arch)))',
+		'\t\t\t.pipe(filter(getMxcExcludeFilter(arch)));',
+		"\t\tconst builtInCopilotExtensionDir = path.join(outputDir, 'extensions', 'copilot');",
+		'\t\tprepareBuiltInCopilotRipgrepShim(platform, arch, builtInCopilotExtensionDir, nodeModulesDir);',
+		'\t\t\t\tcompileCopilotExtensionBuildTask,',
+		''
+	].join('\n'));
+
+	const result = runNode(applyScript, `--root=${root}`, '--profile=clean-full');
+
+	assert.equal(result.status, 0, result.stderr + result.stdout);
+	for (const rel of ['build/gulpfile.vscode.ts', 'build/gulpfile.reh.ts']) {
+		const text = fs.readFileSync(path.join(root, rel), 'utf8');
+		assert.doesNotMatch(text, /compileCopilotExtensionBuildTask|ensureCopilotPlatformPackage|getCopilotExcludeFilter|getCopilotRuntimePrebuildFiles|getCopilotTgrepExcludeFilter|prepareBuiltInCopilotRipgrepShim/, rel);
+		assert.match(text, /import \{ getMxcExcludeFilter, getRipgrepExcludeFilter \} from '\.\/lib\/copilot\.ts';/, rel);
+	}
+});
+
 test('apply clean-full makes Windows packaging tools source optional', () => {
 	const root = makeFixtureRoot({ includeCoreWorkbenchChatEntry: true });
 	const codeIssPath = path.join(root, 'build', 'win32', 'code.iss');

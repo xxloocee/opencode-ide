@@ -121,8 +121,8 @@ for (const depName of ['@github/copilot', '@github/copilot-sdk', '@vscode/copilo
 }
 
 const buildChecks = [
-	['build/gulpfile.vscode.ts', /compileCopilotExtensionBuildTask|getCopilotExcludeFilter|prepareBuiltInCopilotRipgrepShim/],
-	['build/gulpfile.reh.ts', /compileCopilotExtensionBuildTask|getCopilotExcludeFilter|prepareBuiltInCopilotRipgrepShim/],
+	['build/gulpfile.vscode.ts', /compileCopilotExtensionBuildTask|ensureCopilotPlatformPackage|getCopilotExcludeFilter|getCopilotRuntimePrebuildFiles|getCopilotTgrepExcludeFilter|prepareBuiltInCopilotRipgrepShim/],
+	['build/gulpfile.reh.ts', /compileCopilotExtensionBuildTask|ensureCopilotPlatformPackage|getCopilotExcludeFilter|getCopilotRuntimePrebuildFiles|getCopilotTgrepExcludeFilter|prepareBuiltInCopilotRipgrepShim/],
 	['build/gulpfile.extensions.ts', /compile-copilot-extension-build|packageCopilotExtensionStream/],
 	['build/npm/dirs.ts', /'extensions\/copilot'/],
 ];
