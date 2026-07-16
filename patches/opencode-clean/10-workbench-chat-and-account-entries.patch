@@ -15,7 +15,7 @@ index 2c3be6882c4..7d0f7430bd1 100644
  // Telemetry
  import './contrib/telemetry/browser/telemetry.contribution.js';
  
-@@ -216,15 +210,11 @@ import './contrib/notebook/browser/notebook.contribution.js';
+@@ -222,18 +216,11 @@ import './contrib/notebook/browser/notebook.contribution.js';
  // Speech
  import './contrib/speech/browser/speech.contribution.js';
  
@@ -26,7 +26,9 @@ index 2c3be6882c4..7d0f7430bd1 100644
 -import './contrib/inlineChat/browser/inlineChat.contribution.js';
 +// Chat service core
 +import './contrib/chat/browser/chat.core.contribution.js';
-+
+ 
+-// Copilot Voice
+-import './contrib/agentsVoice/browser/agentsVoice.contribution.js';
  import './contrib/mcp/browser/mcp.contribution.js';
  import './contrib/mcp/browser/mcp.view.contribution.js';
 -import './contrib/chat/browser/chatSessions/chatSessions.contribution.js';
@@ -61,7 +63,7 @@ index a59c54bfe18..dcc57fa5c36 100644
  // Tags
  import './contrib/tags/electron-browser/workspaceTagsService.js';
  import './contrib/tags/electron-browser/tags.contribution.js';
-@@ -179,10 +176,8 @@ import './contrib/multiDiffEditor/browser/multiDiffEditor.contribution.js';
+@@ -184,15 +181,9 @@ import './contrib/multiDiffEditor/browser/multiDiffEditor.contribution.js';
  // Remote Tunnel
  import './contrib/remoteTunnel/electron-browser/remoteTunnel.contribution.js';
  
@@ -71,4 +73,9 @@ index a59c54bfe18..dcc57fa5c36 100644
  import './contrib/aiExtensions/browser/aiExtensions.contribution.js';
  import './contrib/opencode/browser/opencode.contribution.js';
  import './contrib/opencode/browser/opencodeWebview.contribution.js';
+-import './contrib/chat/electron-browser/tunnelHost.contribution.js';
+-
+-// Copilot Voice
+-import './contrib/agentsVoice/electron-browser/agentsVoiceNativeCommands.js';
  
+ // Encryption

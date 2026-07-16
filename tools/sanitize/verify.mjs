@@ -213,8 +213,8 @@ if (verifiesBrandingText) {
 
 if (verifiesWorkbenchEntries) {
 	const workbenchEntryChecks = [
-		['src/vs/workbench/workbench.common.main.ts', /contrib\/chat\/browser\/chat\.contribution|contrib\/chat\/browser\/chat\.view\.contribution|contrib\/inlineChat\/browser\/inlineChat\.contribution|contrib\/chat\/browser\/chatSessions\/chatSessions\.contribution|contrib\/chat\/browser\/contextContrib\/chatContext\.contribution/],
-		['src/vs/workbench/workbench.desktop.main.ts', /contrib\/chat\/electron-browser\/chat\.contribution/],
+		['src/vs/workbench/workbench.common.main.ts', /contrib\/chat\/browser\/chat\.contribution|contrib\/chat\/browser\/chat\.view\.contribution|contrib\/inlineChat\/browser\/inlineChat\.contribution|contrib\/chat\/browser\/chatSessions\/chatSessions\.contribution|contrib\/chat\/browser\/contextContrib\/chatContext\.contribution|contrib\/agentsVoice\/browser\/agentsVoice\.contribution/],
+		['src/vs/workbench/workbench.desktop.main.ts', /contrib\/chat\/electron-browser\/(?:chat|tunnelHost)\.contribution|contrib\/agentsVoice\/electron-browser\/agentsVoiceNativeCommands/],
 		['src/vs/workbench/workbench.common.main.ts', /contrib\/authentication\/browser\/authentication\.contribution|contrib\/userDataSync\/browser\/userDataSync\.contribution/],
 		['src/vs/workbench/workbench.desktop.main.ts', /contrib\/userDataSync\/electron-browser\/userDataSync\.contribution/],
 	];

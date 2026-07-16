@@ -37,6 +37,18 @@ test('release workflow treats manual product versions as data', () => {
 	assert.match(workflow, /softprops\/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2\.6\.2/);
 });
 
+test('OpenCode clean patch set matches the current workbench entry points', () => {
+	const patchFile = path.join(repoRoot, 'patches', 'opencode-clean', '10-workbench-chat-and-account-entries.patch');
+	const args = ['apply', '--check', '--ignore-whitespace', patchFile];
+	const forward = spawnSync('git', args, { cwd: repoRoot, encoding: 'utf8' });
+	if (forward.status === 0) {
+		return;
+	}
+
+	const reverse = spawnSync('git', ['apply', '--check', '--reverse', '--ignore-whitespace', patchFile], { cwd: repoRoot, encoding: 'utf8' });
+	assert.equal(reverse.status, 0, [forward.stderr, forward.stdout, reverse.stderr, reverse.stdout].filter(Boolean).join('\n'));
+});
+
 test('Darwin post-package tasks use the compatibility app bundle path', () => {
 	const gulpfile = fs.readFileSync(path.join(repoRoot, 'build', 'gulpfile.vscode.ts'), 'utf8');
 	assert.match(gulpfile, /productAppName: platform === 'darwin' \? \(product\.darwinApplicationName \|\| product\.nameLong\) : product\.nameLong/);
@@ -229,6 +241,23 @@ test('verify clean-full preserves core chat services while rejecting official ch
 	const coreOnlyResult = runNode(verifyScript, `--root=${coreOnlyRoot}`, '--profile=clean-full');
 
 	assert.equal(coreOnlyResult.status, 0, coreOnlyResult.stderr + coreOnlyResult.stdout);
+});
+
+test('verify clean-full rejects each newly added official voice and tunnel entry in isolation', () => {
+	for (const [rel, entry] of [
+		['src/vs/workbench/workbench.common.main.ts', "import './contrib/agentsVoice/browser/agentsVoice.contribution.js';\n"],
+		['src/vs/workbench/workbench.desktop.main.ts', "import './contrib/chat/electron-browser/tunnelHost.contribution.js';\n"],
+		['src/vs/workbench/workbench.desktop.main.ts', "import './contrib/agentsVoice/electron-browser/agentsVoiceNativeCommands.js';\n"],
+	]) {
+		const root = makeFixtureRoot({ includeCoreWorkbenchChatEntry: true });
+		const file = path.join(root, ...rel.split('/'));
+		writeText(file, fs.readFileSync(file, 'utf8') + entry);
+
+		const result = runNode(verifyScript, `--root=${root}`, '--profile=clean-full');
+
+		assert.notEqual(result.status, 0, `${rel}: ${entry}`);
+		assert.match(result.stderr + result.stdout, new RegExp(rel.replaceAll('/', '[\\\\/]')));
+	}
 });
 
 test('verify clean-full rejects default account sign-in registrations', () => {
@@ -610,6 +639,7 @@ function makeFixtureRoot(options = {}) {
 		"import './contrib/chat/browser/chat.contribution.js';",
 		"import './contrib/chat/browser/chat.view.contribution.js';",
 		"import './contrib/inlineChat/browser/inlineChat.contribution.js';",
+		"import './contrib/agentsVoice/browser/agentsVoice.contribution.js';",
 		"import './contrib/chat/browser/chatSessions/chatSessions.contribution.js';",
 		"import './contrib/chat/browser/contextContrib/chatContext.contribution.js';",
 		"import './contrib/authentication/browser/authentication.contribution.js';",
@@ -619,7 +649,12 @@ function makeFixtureRoot(options = {}) {
 	if (options.includeCoreWorkbenchChatEntry) {
 		writeText(path.join(root, 'src', 'vs', 'workbench', 'contrib', 'chat', 'browser', 'chat.core.contribution.ts'), 'class NullChatService {}\n');
 	}
-	writeText(path.join(root, 'src', 'vs', 'workbench', 'workbench.desktop.main.ts'), options.includeFullOnlyWorkbenchEntries ? "import './contrib/userDataSync/electron-browser/userDataSync.contribution.js';\n" : '');
+	writeText(path.join(root, 'src', 'vs', 'workbench', 'workbench.desktop.main.ts'), options.includeFullOnlyWorkbenchEntries ? [
+		"import './contrib/userDataSync/electron-browser/userDataSync.contribution.js';",
+		"import './contrib/chat/electron-browser/tunnelHost.contribution.js';",
+		"import './contrib/agentsVoice/electron-browser/agentsVoiceNativeCommands.js';",
+		''
+	].join('\n') : '');
 	writeText(path.join(root, 'src', 'vs', 'workbench', 'electron-browser', 'desktop.main.ts'), "import { NullDefaultAccountService } from '../../platform/defaultAccount/common/defaultAccount.js';\nconst defaultAccountService = this._register(new NullDefaultAccountService());\n");
 	writeText(path.join(root, 'src', 'vs', 'workbench', 'browser', 'web.main.ts'), "import { NullDefaultAccountService } from '../../platform/defaultAccount/common/defaultAccount.js';\nconst defaultAccountService = this._register(new NullDefaultAccountService());\n");
 	writeText(path.join(root, 'src', 'vs', 'workbench', 'browser', 'parts', 'globalCompositeBar.ts'), `export function isAccountsActionVisible(storageService) {
