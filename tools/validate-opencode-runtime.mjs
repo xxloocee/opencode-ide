@@ -68,6 +68,19 @@ if (missingCatalogEntries.length > 0) {
 	throw new Error(`OpenCode workspaces reference missing catalog entries: ${missingCatalogEntries.join(', ')}`);
 }
 
+const appPackagePath = path.join(root, 'packages', 'app', 'package.json');
+const appIdePackagePath = path.join(root, 'packages', 'app-ide', 'package.json');
+if (fs.existsSync(appPackagePath) && fs.existsSync(appIdePackagePath)) {
+	const appDependencies = JSON.parse(fs.readFileSync(appPackagePath, 'utf8')).dependencies ?? {};
+	const appIdeDependencies = JSON.parse(fs.readFileSync(appIdePackagePath, 'utf8')).dependencies ?? {};
+	const mismatchedSharedDependencies = Object.keys(appIdeDependencies)
+		.filter(name => name in appDependencies && appDependencies[name] !== appIdeDependencies[name])
+		.map(name => `${name} (${appDependencies[name]} != ${appIdeDependencies[name]})`);
+	if (mismatchedSharedDependencies.length > 0) {
+		throw new Error(`OpenCode app-ide shared dependencies must match app: ${mismatchedSharedDependencies.join(', ')}`);
+	}
+}
+
 console.log(`[opencode-runtime] validated ${root}`);
 
 function expandWorkspacePattern(pattern) {

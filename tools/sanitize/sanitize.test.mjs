@@ -182,6 +182,13 @@ test('OpenCode runtime validator rejects invalid lock encoding and missing works
 	const utf16LockWithoutBom = runNode(runtimeValidatorScript, `--root=${root}`);
 	assert.notEqual(utf16LockWithoutBom.status, 0);
 	assert.match(utf16LockWithoutBom.stderr + utf16LockWithoutBom.stdout, /contains NUL bytes/);
+
+	writeText(path.join(root, 'bun.lock'), '{}\n');
+	writeJson(path.join(root, 'packages', 'app', 'package.json'), { dependencies: { 'ghostty-web': 'github:anomalyco/ghostty-web#pinned' } });
+	writeJson(path.join(root, 'packages', 'app-ide', 'package.json'), { dependencies: { 'ghostty-web': 'github:anomalyco/ghostty-web#main' } });
+	const mismatchedSharedDependency = runNode(runtimeValidatorScript, `--root=${root}`);
+	assert.notEqual(mismatchedSharedDependency.status, 0);
+	assert.match(mismatchedSharedDependency.stderr + mismatchedSharedDependency.stdout, /app-ide shared dependencies must match app: ghostty-web/);
 });
 
 test('apply rejects unknown sanitize steps', () => {
