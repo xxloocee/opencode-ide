@@ -456,6 +456,18 @@ for (const [rel, snippet] of packagingMustInclude) {
 	}
 }
 
+const rpmSpecPath = path.join(root, 'resources', 'linux', 'rpm', 'code.spec.template');
+const rpmSpec = fs.readFileSync(rpmSpecPath, 'utf8');
+const rpmFilesIndex = /\r?\n%files\r?\n/.exec(rpmSpec)?.index ?? -1;
+if (
+	rpmFilesIndex === -1 ||
+	/^%\{_bindir\}\/opencode-ide\r?$/m.test(rpmSpec.slice(0, rpmFilesIndex)) ||
+	!/^%\{_bindir\}\/opencode-ide\r?$/m.test(rpmSpec.slice(rpmFilesIndex))
+) {
+	console.error('[sanitize] failed: resources/linux/rpm/code.spec.template.legacyCommandPlacement');
+	failed = true;
+}
+
 const codeIssText = fs.readFileSync(path.join(root, 'build', 'win32', 'code.iss'), 'utf8');
 for (const snippet of [
 	'[Registry]',

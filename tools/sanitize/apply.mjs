@@ -491,6 +491,7 @@ function rewritePackaging() {
 	});
 
 	rewriteTextFile(path.join(root, 'resources', 'linux', 'rpm', 'code.spec.template'), text => {
+		const eol = text.includes('\r\n') ? '\r\n' : '\n';
 		let rewritten = text
 			.replace('Vendor:   Microsoft Corporation', 'Vendor:   Ergouzi IDE')
 			.replace('Packager: Visual Studio Code Team <vscode-linux@microsoft.com>', 'Packager: Ergouzi IDE Maintainers <noreply@ergouzi-ide.local>')
@@ -498,13 +499,20 @@ function rewritePackaging() {
 			.replace('Visual Studio Code is a new choice of tool that combines the simplicity of a code editor with what developers need for the core edit-build-debug cycle. See https://code.visualstudio.com/docs/setup/linux for installation instructions and FAQ.', 'Ergouzi IDE combines a familiar code editing workflow with the integrated OpenCode assistant and a sanitized default distribution.');
 
 		if (!rewritten.includes('Provides: opencode-ide = %{version}-%{release}')) {
-			rewritten = rewritten.replace('Recommends: @@RECOMMENDS@@', 'Recommends: @@RECOMMENDS@@\nProvides: opencode-ide = %{version}-%{release}\nObsoletes: opencode-ide < %{version}-%{release}');
+			rewritten = rewritten.replace('Recommends: @@RECOMMENDS@@', `Recommends: @@RECOMMENDS@@${eol}Provides: opencode-ide = %{version}-%{release}${eol}Obsoletes: opencode-ide < %{version}-%{release}`);
 		}
 		if (!rewritten.includes('ln -s %{_datadir}/%{name}/bin/%{name} %{buildroot}%{_bindir}/opencode-ide')) {
-			rewritten = rewritten.replace('ln -s %{_datadir}/%{name}/bin/%{name} %{buildroot}%{_bindir}/%{name}', 'ln -s %{_datadir}/%{name}/bin/%{name} %{buildroot}%{_bindir}/%{name}\nln -s %{_datadir}/%{name}/bin/%{name} %{buildroot}%{_bindir}/opencode-ide');
+			rewritten = rewritten.replace('ln -s %{_datadir}/%{name}/bin/%{name} %{buildroot}%{_bindir}/%{name}', `ln -s %{_datadir}/%{name}/bin/%{name} %{buildroot}%{_bindir}/%{name}${eol}ln -s %{_datadir}/%{name}/bin/%{name} %{buildroot}%{_bindir}/opencode-ide`);
 		}
-		if (!/^%\{_bindir\}\/opencode-ide$/m.test(rewritten)) {
-			rewritten = rewritten.replace(/%\{_bindir\}\/%\{name\}\r?\n/, '%{_bindir}/%{name}\n%{_bindir}/opencode-ide\n');
+		const filesMatch = /(\r?\n)%files\1/.exec(rewritten);
+		const filesIndex = filesMatch?.index ?? -1;
+		if (filesIndex !== -1) {
+			const installSection = rewritten.slice(0, filesIndex).replace(/^%\{_bindir\}\/opencode-ide\r?\n/gm, '');
+			let filesSection = rewritten.slice(filesIndex);
+			if (!/^%\{_bindir\}\/opencode-ide\r?$/m.test(filesSection)) {
+				filesSection = filesSection.replace(/^(%\{_bindir\}\/%\{name\})(?:\r?\n|$)/m, `$1${eol}%{_bindir}/opencode-ide${eol}`);
+			}
+			rewritten = installSection + filesSection;
 		}
 
 		return rewritten;

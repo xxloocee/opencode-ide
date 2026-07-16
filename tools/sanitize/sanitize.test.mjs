@@ -572,7 +572,7 @@ test('apply clean-full preserves the previous Linux package and command identity
 	writeText(path.join(root, 'resources', 'linux', 'debian', 'control.template'), 'Maintainer: Microsoft Corporation <vscode-linux@microsoft.com>\nHomepage: https://code.visualstudio.com/\nProvides: visual-studio-@@NAME@@\nConflicts: visual-studio-@@NAME@@\nReplaces: visual-studio-@@NAME@@\n');
 	writeText(path.join(root, 'resources', 'linux', 'debian', 'postinst.template'), 'rm -f /usr/bin/@@NAME@@\nln -s /usr/share/@@NAME@@/bin/@@NAME@@ /usr/bin/@@NAME@@\n# packages.microsoft.com/repos/code\nif [ "@@NAME@@" != "code-oss" ]; then\n\texit 0\nfi\n');
 	writeText(path.join(root, 'resources', 'linux', 'debian', 'postrm.template'), 'rm -f /usr/bin/@@NAME@@\n');
-	writeText(path.join(root, 'resources', 'linux', 'rpm', 'code.spec.template'), 'Vendor:   Microsoft Corporation\nPackager: Visual Studio Code Team <vscode-linux@microsoft.com>\nRecommends: @@RECOMMENDS@@\nln -s %{_datadir}/%{name}/bin/%{name} %{buildroot}%{_bindir}/%{name}\n%{_bindir}/%{name}\n');
+	writeText(path.join(root, 'resources', 'linux', 'rpm', 'code.spec.template'), 'Vendor:   Microsoft Corporation\nPackager: Visual Studio Code Team <vscode-linux@microsoft.com>\nRecommends: @@RECOMMENDS@@\n%install\nln -s %{_datadir}/%{name}/bin/%{name} %{buildroot}%{_bindir}/%{name}\n\n%files\n%{_bindir}/%{name}\n'.replaceAll('\n', '\r\n'));
 
 	const first = runNode(applyScript, `--root=${root}`, '--profile=clean-full');
 	const second = runNode(applyScript, `--root=${root}`, '--profile=clean-full');
@@ -589,8 +589,13 @@ test('apply clean-full preserves the previous Linux package and command identity
 	const rpm = fs.readFileSync(path.join(root, 'resources', 'linux', 'rpm', 'code.spec.template'), 'utf8');
 	assert.equal((rpm.match(/^Provides: opencode-ide = %\{version\}-%\{release\}$/gm) || []).length, 1);
 	assert.equal((rpm.match(/^Obsoletes: opencode-ide < %\{version\}-%\{release\}$/gm) || []).length, 1);
-	assert.equal((rpm.match(/^ln -s .*%\{_bindir\}\/opencode-ide$/gm) || []).length, 1);
-	assert.equal((rpm.match(/^%\{_bindir\}\/opencode-ide$/gm) || []).length, 1);
+	assert.equal((rpm.match(/^ln -s .*%\{_bindir\}\/opencode-ide\r?$/gm) || []).length, 1);
+	assert.equal((rpm.match(/^%\{_bindir\}\/opencode-ide\r?$/gm) || []).length, 1);
+	const rpmFilesIndex = /\r?\n%files\r?\n/.exec(rpm)?.index ?? -1;
+	assert.ok(rpmFilesIndex > 0);
+	assert.doesNotMatch(rpm.slice(0, rpmFilesIndex), /^%\{_bindir\}\/opencode-ide\r?$/m);
+	assert.match(rpm.slice(rpmFilesIndex), /^%\{_bindir\}\/opencode-ide\r?$/m);
+	assert.doesNotMatch(rpm, /(?<!\r)\n/);
 });
 
 test('verify clean-full rejects missing Linux package replacement declarations', () => {
@@ -608,6 +613,18 @@ test('verify clean-full rejects missing Linux package replacement declarations',
 		assert.notEqual(result.status, 0, `${rel}: ${snippet}`);
 		assert.match(result.stderr + result.stdout, new RegExp(rel.replaceAll('/', '[\\\\/]')));
 	}
+});
+
+test('verify clean-full rejects an RPM legacy command outside the files manifest', () => {
+	const root = makeFixtureRoot({ includeCoreWorkbenchChatEntry: true });
+	const file = path.join(root, 'resources', 'linux', 'rpm', 'code.spec.template');
+	const text = fs.readFileSync(file, 'utf8');
+	writeText(file, text.replace('\n%files\n%{_bindir}/opencode-ide\n', '\n%{_bindir}/opencode-ide\n%files\n'));
+
+	const result = runNode(verifyScript, `--root=${root}`, '--profile=clean-full');
+
+	assert.notEqual(result.status, 0);
+	assert.match(result.stderr + result.stdout, /legacyCommandPlacement/);
 });
 
 test('verify clean-full rejects welcome page as startup editor default', () => {
@@ -845,7 +862,7 @@ function makeFixtureRoot(options = {}) {
 	writeText(path.join(root, 'resources', 'linux', 'debian', 'templates.template'), 'Template: @@NAME@@/configure-external-repo\n');
 	writeText(path.join(root, 'resources', 'linux', 'debian', 'postinst.template'), 'Ergouzi IDE packages do not configure any external apt repository.\nln -s /usr/share/@@NAME@@/bin/@@NAME@@ /usr/bin/opencode-ide\n');
 	writeText(path.join(root, 'resources', 'linux', 'debian', 'postrm.template'), 'rm -f /usr/bin/opencode-ide\n');
-	writeText(path.join(root, 'resources', 'linux', 'rpm', 'code.spec.template'), 'Vendor:   Ergouzi IDE\nProvides: opencode-ide = %{version}-%{release}\nObsoletes: opencode-ide < %{version}-%{release}\n%{_bindir}/opencode-ide\n');
+	writeText(path.join(root, 'resources', 'linux', 'rpm', 'code.spec.template'), 'Vendor:   Ergouzi IDE\nProvides: opencode-ide = %{version}-%{release}\nObsoletes: opencode-ide < %{version}-%{release}\n%install\nln -s %{_datadir}/%{name}/bin/%{name} %{buildroot}%{_bindir}/opencode-ide\n\n%files\n%{_bindir}/opencode-ide\n');
 	writeText(path.join(root, 'build', 'win32', 'code.iss'), '[InstallDelete]\nType: files; Name: "{app}\\OpenCode IDE.exe"; Check: IsNotBackgroundUpdate\nType: files; Name: "{autodesktop}\\OpenCode IDE.lnk"; Check: IsNotBackgroundUpdate\nType: files; Name: "{app}\\ErgouziCode.exe"; Check: IsNotBackgroundUpdate\nType: files; Name: "{autodesktop}\\ErgouziCode Preview.lnk"; Check: IsNotBackgroundUpdate\nAppPublisher=Ergouzi IDE\n[Registry]\nRoot: {#SoftwareClassesRootKey}; Subkey: "Software\\Classes\\Applications\\OpenCode IDE.exe"; ValueType: none; Flags: deletekey; Check: IsNotBackgroundUpdate\nRoot: {#SoftwareClassesRootKey}; Subkey: "Software\\Classes\\Applications\\ErgouziCode.exe"; ValueType: none; Flags: deletekey; Check: IsNotBackgroundUpdate\nRoot: {#EnvironmentRootKey}; Subkey: "Software\\Microsoft\\Windows\\CurrentVersion\\App Paths\\opencode-ide.exe"; ValueType: string; ValueName: ""; ValueData: "{app}\\{#ExeBasename}.exe"; Flags: uninsdeletekey\nRoot: {#EnvironmentRootKey}; Subkey: "Software\\Microsoft\\Windows\\CurrentVersion\\App Paths\\opencode-ide.exe"; ValueType: none; ValueName: "Path"; Flags: deletevalue\nRoot: {#EnvironmentRootKey}; Subkey: "Software\\Microsoft\\Windows\\CurrentVersion\\App Paths\\ergouzicode-preview.exe"; ValueType: string; ValueName: ""; ValueData: "{app}\\{#ExeBasename}.exe"; Flags: uninsdeletekey\nRoot: {#EnvironmentRootKey}; Subkey: "Software\\Microsoft\\Windows\\CurrentVersion\\App Paths\\ergouzicode-preview.exe"; ValueType: none; ValueName: "Path"; Flags: deletevalue\n; App Paths - allows running code from Explorer address bar\nSource: "tools\\*"; DestDir: "{app}\\{#VersionedResourcesFolder}\\tools"; Flags: ignoreversion skipifsourcedoesntexist\nSource: "bin\\opencode-ide.cmd"; DestDir: "{code:GetDestDir}\\bin"; DestName: "opencode-ide.cmd"; Flags: ignoreversion\nSource: "bin\\opencode-ide"; DestDir: "{code:GetDestDir}\\bin"; DestName: "opencode-ide"; Flags: ignoreversion\n');
 	writeJson(path.join(root, 'resources', 'server', 'manifest.json'), {
 		name: options.includeUpstreamProductIcons ? 'Code - OSS' : 'Ergouzi IDE',
