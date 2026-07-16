@@ -19,17 +19,16 @@
 当前文档统一采用下面这套说法：
 
 - `opencode-ide`
-  仓库名，也是 OpenCode IDE 宿主仓库。
-- OpenCode IDE
+  仓库名，也是 Ergouzi IDE 宿主仓库。
+- Ergouzi IDE
   产品层说法，表示当前这个 IDE 宿主。
 - OpenCode
   内嵌 AI 助手和 sidecar runtime。
 
 代码里仍然有一些真实技术标识，比如：
 
-- `ErgouziCode`
 - `SessionsOpenCode*`
-- `ErgouziCode.exe`
+- `QuantCode`
 
 这些如果是真实代码、配置键或产物名，文档里继续保留，不强行改写。
 

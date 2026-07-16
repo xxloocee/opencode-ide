@@ -1,6 +1,6 @@
-# OpenCode IDE 净化构建发布指南
+# Ergouzi IDE 净化构建发布指南
 
-本文档作为 OpenCode IDE 净化版本的构建和发布指南。目标不是维护一份长期分叉源码，而是在发布分支上保留自动净化脚本，并在打 tag 构建前自动完成净化、校验和打包。
+本文档作为 Ergouzi IDE 净化版本的构建和发布指南。目标不是维护一份长期分叉源码，而是在 `main` 上保留自动净化脚本，并在打 tag 构建前自动完成净化、校验和打包。
 
 ## 发布目标
 
@@ -21,23 +21,29 @@
 
 ## 分支策略
 
-净化发布固定在 `release/opencode-clean` 分支进行。
+日常开发和净化发布统一在 `main` 分支进行。
 
-- 不要求合回 `main`。
-- `main` 有更新时，先把 `release/opencode-clean` rebase 到最新 `main`，再打测试 tag。
+- 不再维护独立的长期发布分支；正常改动直接提交到 `main`。
+- 开始工作和发布前先同步 `origin/main`，避免从过期提交继续开发或打 tag。
 - 净化逻辑应尽量保留在 `tools/sanitize/` 脚本里，避免在净化后的源码上做不可追踪的手工补丁。
-- 与 OpenCode 快捷键、IDE 通信桥接等基础能力相关的小范围改动，可以按需提前拣选到 `main`，减少后续 rebase 冲突。
+- 正式 tag 只能在对应改动已经推送到 `origin/main` 后创建。
 
 推荐同步流程：
 
 ```powershell
-git checkout release/opencode-clean
+git checkout main
+if ($LASTEXITCODE -ne 0) { throw 'git checkout main failed' }
+git status --short --branch
+if ($LASTEXITCODE -ne 0) { throw 'git status failed' }
 git fetch origin
-git rebase origin/main
+if ($LASTEXITCODE -ne 0) { throw 'git fetch origin failed' }
+git pull --ff-only origin main
+if ($LASTEXITCODE -ne 0) { throw 'git pull origin main failed' }
 node tools\sanitize\sanitize.test.mjs
+if ($LASTEXITCODE -ne 0) { throw 'sanitizer tests failed' }
 ```
 
-如 rebase 出现冲突，优先保留 `main` 的上游结构，再调整 `tools/sanitize/` 的净化规则，让净化结果重新通过校验。
+如需同步 VS Code 上游，按仓库 `AGENTS.md` 的 main 分支 upstream rebase 流程执行；完成后重新调整 `tools/sanitize/` 规则并跑完校验。
 
 ## 净化脚本
 
@@ -76,13 +82,13 @@ Windows 本地 release 构建优先使用仓库脚本，让 Node、MSVC、`signt
 
 ```powershell
 nvm use 24.15.0
-npm run opencode-clean:win32-system-setup
+npm run ergouzi-ide:win32-system-setup
 ```
 
 脚本入口：
 
 ```text
-scripts/opencode-clean-win32-system-setup.ps1
+scripts/ergouzi-ide-win32-system-setup.ps1
 ```
 
 脚本会按顺序执行：
@@ -112,15 +118,15 @@ $env:PATH='C:\Program Files (x86)\Windows Kits\10\bin\10.0.26100.0\x64;' + $env:
 如果本机已完成净化或依赖安装，可以显式跳过对应步骤：
 
 ```powershell
-npm run opencode-clean:win32-system-setup -- -SkipSanitize
-npm run opencode-clean:win32-system-setup -- -SkipNpmCi
-npm run opencode-clean:win32-system-setup -- -ValidateOnly
+npm run ergouzi-ide:win32-system-setup -- -SkipSanitize
+npm run ergouzi-ide:win32-system-setup -- -SkipNpmCi
+npm run ergouzi-ide:win32-system-setup -- -ValidateOnly
 ```
 
 如果 OpenCode baseline runtime 下载或解压失败，例如出现 `Failed to extract executable for 'bun-windows-x64-baseline-*'`，本地临时验证可以显式跳过 baseline：
 
 ```powershell
-npm run opencode-clean:win32-system-setup -- -SkipBaseline
+npm run ergouzi-ide:win32-system-setup -- -SkipBaseline
 ```
 
 `-SkipBaseline` 只用于本地兜底，不应默认用于正式 release parity 校验。正式 tag workflow 仍应尽量保留 baseline runtime 构建，除非明确接受 runtime 产物差异。
@@ -186,13 +192,13 @@ npm run gulp vscode-win32-x64-user-setup
 发布 workflow：
 
 ```text
-.github/workflows/build-quantcode-installers.yml
+.github/workflows/build-ergouzi-ide-installers.yml
 ```
 
 触发方式：
 
 - 手动触发：`workflow_dispatch`
-- tag 触发：`opencode-clean-v*.*.*`
+- tag 触发：`ergouzi-ide-v*.*.*`
 
 tag 触发默认构建全部平台和架构：
 
@@ -205,7 +211,7 @@ tag 触发默认构建全部平台和架构：
 | Linux | x64 | `ubuntu-24.04` |
 | Linux | arm64 | `ubuntu-24.04-arm` |
 
-手动触发时可以选择：
+手动触发时可以填写独立的 `release_version`；留空时使用 `0.0.0-dev.<run number>`，不会再借用 `package.json.version`。同时可以选择：
 
 - `all`
 - `windows`
@@ -216,36 +222,36 @@ tag 触发默认构建全部平台和架构：
 
 ### tag workflow 审阅结论
 
-`.github/workflows/build-quantcode-installers.yml` 当前适合继续作为 `opencode-clean-v*.*.*` tag 的发布入口，但打 tag 前要注意下面几条边界：
+`.github/workflows/build-ergouzi-ide-installers.yml` 当前适合继续作为 `ergouzi-ide-v*.*.*` tag 的发布入口，但打 tag 前要注意下面几条边界：
 
 - Windows job 使用 `windows-2022`，通常会落到 VS2022 Build Tools，能避开本机 VS2026 缺 Spectre libs 导致 `npm ci` 失败的问题。
 - Windows job 已经在 Windows SDK 下自动查找 `signtool.exe` 并加入 `PATH`，与本地脚本保持一致。
-- tag 触发时 `OPENCODE_REPOSITORY` 固定为 `xxloocee/opencode-private`，`OPENCODE_REF` 固定为 `main`。这意味着同一个 IDE tag 在不同时间重跑，可能拿到不同的 OpenCode runtime commit；workflow 会在 `BUILD_INFO-*.txt` 记录实际 `opencode_sha`，但发布语义上仍要接受“runtime 跟随 main”的策略。
-- workflow 默认不设置 `ERGOUZICODE_OPENCODE_SKIP_BASELINE=1`。这是正确的 release parity 默认值；如果 CI 也遇到 Bun baseline 下载或解压失败，应优先修 baseline 获取逻辑，而不是直接把 skip baseline 变成 tag 构建默认值。
+- tag 触发时 `OPENCODE_REPOSITORY` 固定为 `xxloocee/opencode-private`，runtime commit 固定读取 tag 内的 `.github/opencode-runtime-ref`。`plan` job 只解析一次该 commit，所有平台矩阵都按同一个 SHA checkout；准备新版本时必须先把该文件更新为已经推送到 OpenCode 仓库的完整 commit SHA。
+- workflow 默认不设置 `ERGOUZI_IDE_OPENCODE_SKIP_BASELINE=1`。这是正确的 release parity 默认值；如果 CI 也遇到 Bun baseline 下载或解压失败，应优先修 baseline 获取逻辑，而不是直接把 skip baseline 变成 tag 构建默认值。
 - `vscode-win32-<arch>-system-setup` 依赖前置的 `vscode-win32-<arch>-min` 输出，workflow 已按 `min`、`inno-updater`、`system-setup`、`user-setup` 顺序执行。
 - `build/win32/code.iss` 里的顶层 `tools\*` 应保持可选；clean-full 输出不一定包含顶层 `tools` 目录，否则本地和 CI 的 setup 任务都会在 Inno Setup 阶段失败。
-- `release` job 只在 tag 以 `refs/tags/opencode-clean-v` 开头时执行，且依赖所有 matrix build 完成。任何一个平台失败都会阻止 GitHub Release 创建，这是发布流程的合理失败模式。
+- `release` job 只接受 `push` 事件产生的 `ergouzi-ide-v*` tag；手动 workflow 即使选择 tag ref 也不会发布。release job 依赖所有 matrix build 完成，并会拒绝覆盖已经存在的同名 Release。任何一个平台失败都会阻止 GitHub Release 创建，这是发布流程的合理失败模式。
 
-如果后续希望 tag 构建完全可复现，建议把 `OPENCODE_REF` 从固定 `main` 改为随 IDE tag 明确记录的 runtime tag 或 commit SHA。
+`.github/opencode-runtime-ref` 是正式发布的 runtime 锁文件。不要填写分支名或浮动 tag；只接受 40 位 commit SHA。
 
 ## 构建产物
 
 Windows：
 
-- `OpenCodeIDE-win32-<arch>-<version>.zip`
-- `OpenCodeIDESetup-<arch>-<version>.exe`
-- `OpenCodeIDEUserSetup-<arch>-<version>.exe`
+- `ergouzi-ide-win32-<arch>-<version>.zip`
+- `ergouzi-ide-setup-<arch>-<version>.exe`
+- `ergouzi-ide-user-setup-<arch>-<version>.exe`
 
 macOS：
 
-- `OpenCodeIDE-darwin-<arch>-<version>.zip`
-- `OpenCodeIDE-darwin-<arch>-<version>.dmg`
+- `ergouzi-ide-darwin-<arch>-<version>.zip`
+- `ergouzi-ide-darwin-<arch>-<version>.dmg`
 
 Linux：
 
-- `OpenCodeIDE-linux-<arch>-<version>.tar.gz`
-- `.deb`
-- `.rpm`
+- `ergouzi-ide-linux-<arch>-<version>.tar.gz`
+- `ergouzi-ide_<version>-<revision>_<arch>.deb`
+- `ergouzi-ide-<version>-<revision>.<platform>.<arch>.rpm`
 
 每个平台的 workflow artifact 还会附带：
 
@@ -254,50 +260,125 @@ Linux：
 
 GitHub Release 页面只上传最终安装包：
 
-- Windows：`OpenCodeIDESetup-*.exe`、`OpenCodeIDEUserSetup-*.exe`
-- macOS：`OpenCodeIDE-darwin-*.dmg`
+- Windows：`ergouzi-ide-setup-*.exe`、`ergouzi-ide-user-setup-*.exe`
+- macOS：`ergouzi-ide-darwin-*.dmg`
 - Linux：`.deb`、`.rpm`
+
+Release 标题固定为 `Ergouzi IDE <version>`，tag 固定为 `ergouzi-ide-v<version>`。tag 中的版本是 Ergouzi IDE 产品发布版本，独立于 `package.json.version` 中的 VS Code 宿主版本；tag 构建生成的 ZIP、EXE、DMG 和 TAR 外层文件名使用产品发布版本。
+
+为兼容已发布的 `opencode-ide` 包，Linux 包声明 `Provides/Replaces/Conflicts`（RPM 使用 `Provides/Obsoletes`），Windows 和 Linux 安装产物暂时保留 `opencode-ide` 命令别名。用户数据目录、URL 协议和系统应用标识也继续沿用旧值，避免升级后丢失设置或协议关联。Windows 安装器会清理已发布的 `OpenCode IDE` 以及历史 `ErgouziCode Preview` 主程序与快捷方式；macOS 的磁盘 bundle 路径暂时保留为 `OpenCode IDE.app`，通过 bundle 元数据展示 `Ergouzi IDE`，使新 DMG 能覆盖旧应用并继续兼容既有 shell command 链接。
+
+`.deb` 和 `.rpm` 文件名及包内版本仍遵循 `package.json.version` 的 VS Code 宿主版本，这是 Linux 包管理器的升级版本；它与 GitHub Release 使用的 Ergouzi IDE 产品发布版本是两个不同层级。
 
 `zip`、`tar.gz` 和 `BUILD_INFO-*.txt` 只保留在 workflow artifact 或 release notes 中，不作为 release asset 上传。
 
 ## 测试 tag 流程
 
-先确认分支干净：
+先定义原生命令执行器。后续 `git` 和 `node` 命令都通过它运行；任何一步返回非零退出码都会立即终止流程：
 
 ```powershell
-git checkout release/opencode-clean
-git status --short --branch
+function Invoke-NativeStep {
+  param(
+    [Parameter(Mandatory)]
+    [string]$Label,
+    [Parameter(Mandatory)]
+    [scriptblock]$Step
+  )
+
+  & $Step
+  if ($LASTEXITCODE -ne 0) {
+    throw "$Label failed with exit code $LASTEXITCODE"
+  }
+}
+```
+
+在同一个 PowerShell 会话中确认当前位于 `main`，并审查待发布改动：
+
+```powershell
+Invoke-NativeStep 'checkout main' { git checkout main }
+Invoke-NativeStep 'show worktree status' { git status --short --branch }
 ```
 
 本地快速校验：
 
 ```powershell
-node --check tools\sanitize\apply.mjs
-node --check tools\sanitize\verify.mjs
-node --check tools\sanitize\sanitize.test.mjs
-node tools\sanitize\sanitize.test.mjs
-git diff --check
+Invoke-NativeStep 'check sanitize apply syntax' { node --check tools\sanitize\apply.mjs }
+Invoke-NativeStep 'check sanitize verify syntax' { node --check tools\sanitize\verify.mjs }
+Invoke-NativeStep 'check sanitizer test syntax' { node --check tools\sanitize\sanitize.test.mjs }
+Invoke-NativeStep 'run sanitizer tests' { node tools\sanitize\sanitize.test.mjs }
+Invoke-NativeStep 'check working tree diff' { git diff --check }
 ```
 
-提交并推送：
+提交当前改动：
 
 ```powershell
-git add tools\sanitize .github\workflows\build-quantcode-installers.yml docs\opencode-clean-release-plan.zh.md
-git commit -m "chore: update opencode clean release guide"
-git push origin release/opencode-clean
+$releaseFiles = @(
+  '.github/opencode-runtime-ref'
+  ':(glob).github/workflows/build-*-installers.yml'
+  'build/darwin/create-dmg.ts'
+  'build/darwin/create-universal-app.ts'
+  'build/darwin/sign.ts'
+  'build/gulpfile.vscode.ts'
+  'build/lib/electron.ts'
+  'build/win32/code.iss'
+  'package.json'
+  'product.json'
+  'patches/opencode-clean'
+  ':(glob)scripts/*win32-system-setup.ps1'
+  'src/vs/workbench/contrib/aiExtensions/browser/aiExtensionsWorkbenchService.ts'
+  'src/vs/workbench/contrib/opencode/browser/opencode.contribution.ts'
+  'tools/sanitize'
+  ':(glob)docs/*release-plan.zh.md'
+  'docs/opencode-boundaries.zh.md'
+  'docs/opencode-ide-agent-roadmap.zh.md'
+  'docs/opencode-ide-installer-build.zh.md'
+  'docs/quant-workbench-management-plan.zh.md'
+)
+Invoke-NativeStep 'stage release files' { git add -A -- $releaseFiles }
+Invoke-NativeStep 'check staged diff' { git diff --cached --check }
+Invoke-NativeStep 'show staged status' { git status --short }
+Invoke-NativeStep 'commit release changes' { git commit -m "chore: unify Ergouzi IDE release identity" }
+```
+
+基于最新远端 `main` 做 rebase，并重新校验。任一命令失败时都必须停止，不能继续打 tag：
+
+```powershell
+Invoke-NativeStep 'fetch origin' { git fetch origin }
+Invoke-NativeStep 'rebase onto origin/main' { git rebase origin/main }
+
+Invoke-NativeStep 'recheck sanitize apply syntax' { node --check tools\sanitize\apply.mjs }
+Invoke-NativeStep 'recheck sanitize verify syntax' { node --check tools\sanitize\verify.mjs }
+Invoke-NativeStep 'recheck sanitizer test syntax' { node --check tools\sanitize\sanitize.test.mjs }
+Invoke-NativeStep 'rerun sanitizer tests' { node tools\sanitize\sanitize.test.mjs }
+Invoke-NativeStep 'recheck working tree diff' { git diff --check }
+Invoke-NativeStep 'show rebased status' { git status --short --branch }
+```
+
+推送 `main`，并确认 tag 将指向已经存在于远端的同一个提交：
+
+```powershell
+Invoke-NativeStep 'push main' { git push origin HEAD:main }
+Invoke-NativeStep 'refresh origin/main' { git fetch origin main }
+
+$localHead = (Invoke-NativeStep 'resolve local HEAD' { git rev-parse HEAD }).Trim()
+$remoteHead = (Invoke-NativeStep 'resolve origin/main' { git rev-parse origin/main }).Trim()
+if ($localHead -ne $remoteHead) {
+  throw "Local HEAD $localHead does not match origin/main $remoteHead"
+}
 ```
 
 打测试 tag：
 
 ```powershell
-git tag opencode-clean-v0.0.x-test
-git push origin opencode-clean-v0.0.x-test
+$version = '0.0.4' # Ergouzi IDE 产品发布版本，按实际版本修改
+Invoke-NativeStep 'create release tag' { git tag "ergouzi-ide-v$version" }
+Invoke-NativeStep 'push release tag' { git push origin "ergouzi-ide-v$version" }
 ```
 
 查看 workflow：
 
 ```powershell
-gh run list --repo xxloocee/opencode-ide --workflow build-quantcode-installers.yml --limit 5
+gh run list --repo xxloocee/opencode-ide --workflow build-ergouzi-ide-installers.yml --limit 5
 ```
 
 ## 发布前检查
@@ -317,7 +398,7 @@ gh run list --repo xxloocee/opencode-ide --workflow build-quantcode-installers.y
 
 如果 tag 没有触发构建：
 
-- 确认 tag 名匹配 `opencode-clean-v*.*.*`。
+- 确认 tag 名匹配 `ergouzi-ide-v*.*.*`。
 - 确认 tag 已推送到 `origin`。
 - 确认 workflow 文件存在于 tag 指向的提交中。
 
@@ -337,11 +418,11 @@ gh run list --repo xxloocee/opencode-ide --workflow build-quantcode-installers.y
 
 - 确认安装了 Windows SDK。
 - 把类似 `C:\Program Files (x86)\Windows Kits\10\bin\10.0.26100.0\x64` 的目录加入当前构建进程 `PATH`。
-- 推荐直接使用 `npm run opencode-clean:win32-system-setup`，脚本会自动搜索 Windows SDK 下的 `signtool.exe`。
+- 推荐直接使用 `npm run ergouzi-ide:win32-system-setup`，脚本会自动搜索 Windows SDK 下的 `signtool.exe`。
 
 如果 OpenCode baseline runtime 下载或解压失败：
 
-- 本地临时验证可以使用 `npm run opencode-clean:win32-system-setup -- -SkipBaseline`。
+- 本地临时验证可以使用 `npm run ergouzi-ide:win32-system-setup -- -SkipBaseline`。
 - 正式 tag workflow 不应默认跳过 baseline；CI 也失败时，优先检查 Bun baseline 下载 URL、缓存和解压逻辑。
 
 如果某个平台构建失败：

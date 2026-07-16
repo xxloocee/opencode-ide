@@ -102,7 +102,7 @@ D:\Project\test-project\quant-test-5-14
 
 追求：
 
-- 在 VS Code / OpenCode IDE 内管理一个具体量化项目
+- 在 VS Code / Ergouzi IDE 内管理一个具体量化项目
 - 围绕“策略、数据、回测结果、运行线索”做管理
 - 让 AI 编排资产作为辅助层存在，而不是主资产层
 - 让常见动作可以在一个面板里闭环完成

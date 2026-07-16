@@ -48,21 +48,22 @@ if (productKeys.has('webviewContentExternalBaseUrlTemplate')) {
 }
 
 const productIdentityChecks = [
-	['nameShort', 'OpenCode IDE'],
-	['nameLong', 'OpenCode IDE'],
-	['applicationName', 'opencode-ide'],
+	['nameShort', 'Ergouzi IDE'],
+	['nameLong', 'Ergouzi IDE'],
+	['applicationName', 'ergouzi-ide'],
 	['dataFolderName', '.opencode-ide'],
 	['sharedDataFolderName', '.opencode-ide-shared'],
 	['serverApplicationName', 'opencode-ide-server'],
 	['serverDataFolderName', '.opencode-ide-server'],
 	['tunnelApplicationName', 'opencode-ide-tunnel'],
-	['win32DirName', 'OpenCode IDE'],
-	['win32NameVersion', 'OpenCode IDE'],
+	['win32DirName', 'Ergouzi IDE'],
+	['win32NameVersion', 'Ergouzi IDE'],
 	['win32RegValueName', 'OpenCodeIDE'],
 	['win32AppUserModelId', 'OpenCode.IDE'],
-	['win32ShellNameShort', 'Open&Code IDE'],
+	['win32ShellNameShort', '&Ergouzi IDE'],
+	['darwinApplicationName', 'OpenCode IDE'],
 	['darwinBundleIdentifier', 'com.opencode.ide'],
-	['linuxIconName', 'opencode-ide'],
+	['linuxIconName', 'ergouzi-ide'],
 	['urlProtocol', 'opencode-ide'],
 ];
 
@@ -78,11 +79,11 @@ if (product.defaultChatAgent?.extensionId !== 'opencode.ide-placeholder' || prod
 }
 
 for (const item of product.builtInExtensions || []) {
-	if (item?.metadata?.publisherDisplayName !== 'OpenCode IDE') {
+	if (item?.metadata?.publisherDisplayName !== 'Ergouzi IDE') {
 		console.error('[sanitize] failed: product.builtInExtensions.publisherDisplayName');
 		failed = true;
 	}
-	if (item?.metadata?.publisherId?.displayName !== 'OpenCode IDE') {
+	if (item?.metadata?.publisherId?.displayName !== 'Ergouzi IDE') {
 		console.error('[sanitize] failed: product.builtInExtensions.publisherId.displayName');
 		failed = true;
 	}
@@ -399,18 +400,48 @@ if (verifiesOpenCodeBridge) {
 const packagingMustInclude = [
 	['resources/linux/code.desktop', 'Keywords=opencode;ide;'],
 	['resources/linux/code.appdata.xml', 'https://github.com/xxloocee/opencode-ide'],
-	['resources/linux/debian/control.template', 'Maintainer: OpenCode IDE Maintainers <noreply@opencode-ide.local>'],
+	['resources/linux/debian/control.template', 'Maintainer: Ergouzi IDE Maintainers <noreply@ergouzi-ide.local>'],
+	['resources/linux/debian/control.template', 'Provides: visual-studio-@@NAME@@, opencode-ide'],
+	['resources/linux/debian/control.template', 'Conflicts: visual-studio-@@NAME@@, opencode-ide'],
+	['resources/linux/debian/control.template', 'Replaces: visual-studio-@@NAME@@, opencode-ide'],
 	['resources/linux/debian/templates.template', 'Template: @@NAME@@/configure-external-repo'],
-	['resources/linux/debian/postinst.template', 'OpenCode IDE packages do not configure any external apt repository.'],
-	['resources/linux/rpm/code.spec.template', 'Vendor:   OpenCode IDE'],
-	['build/win32/code.iss', 'AppPublisher=OpenCode IDE'],
+	['resources/linux/debian/postinst.template', 'Ergouzi IDE packages do not configure any external apt repository.'],
+	['resources/linux/debian/postinst.template', 'ln -s /usr/share/@@NAME@@/bin/@@NAME@@ /usr/bin/opencode-ide'],
+	['resources/linux/debian/postrm.template', 'rm -f /usr/bin/opencode-ide'],
+	['resources/linux/rpm/code.spec.template', 'Vendor:   Ergouzi IDE'],
+	['resources/linux/rpm/code.spec.template', 'Provides: opencode-ide = %{version}-%{release}'],
+	['resources/linux/rpm/code.spec.template', 'Obsoletes: opencode-ide < %{version}-%{release}'],
+	['resources/linux/rpm/code.spec.template', '%{_bindir}/opencode-ide'],
+	['build/win32/code.iss', 'AppPublisher=Ergouzi IDE'],
 	['build/win32/code.iss', 'Source: "tools\\*"; DestDir: "{app}\\{#VersionedResourcesFolder}\\tools"; Flags: ignoreversion skipifsourcedoesntexist'],
+	['build/win32/code.iss', 'Source: "bin\\opencode-ide.cmd"; DestDir: "{code:GetDestDir}\\bin"; DestName: "opencode-ide.cmd"; Flags: ignoreversion'],
+	['build/win32/code.iss', 'Source: "bin\\opencode-ide"; DestDir: "{code:GetDestDir}\\bin"; DestName: "opencode-ide"; Flags: ignoreversion'],
+	['build/win32/code.iss', 'Type: files; Name: "{app}\\OpenCode IDE.exe"; Check: IsNotBackgroundUpdate'],
+	['build/win32/code.iss', 'Type: files; Name: "{autodesktop}\\OpenCode IDE.lnk"; Check: IsNotBackgroundUpdate'],
+	['build/win32/code.iss', 'Type: files; Name: "{app}\\ErgouziCode.exe"; Check: IsNotBackgroundUpdate'],
+	['build/win32/code.iss', 'Type: files; Name: "{autodesktop}\\ErgouziCode Preview.lnk"; Check: IsNotBackgroundUpdate'],
 ];
 
 for (const [rel, snippet] of packagingMustInclude) {
 	const text = fs.readFileSync(path.join(root, rel), 'utf8');
 	if (!text.includes(snippet)) {
 		console.error(`[sanitize] failed: ${rel}`);
+		failed = true;
+	}
+}
+
+const codeIssText = fs.readFileSync(path.join(root, 'build', 'win32', 'code.iss'), 'utf8');
+for (const snippet of [
+	'[Registry]',
+	'Root: {#SoftwareClassesRootKey}; Subkey: "Software\\Classes\\Applications\\OpenCode IDE.exe"; ValueType: none; Flags: deletekey; Check: IsNotBackgroundUpdate',
+	'Root: {#SoftwareClassesRootKey}; Subkey: "Software\\Classes\\Applications\\ErgouziCode.exe"; ValueType: none; Flags: deletekey; Check: IsNotBackgroundUpdate',
+	'Root: {#EnvironmentRootKey}; Subkey: "Software\\Microsoft\\Windows\\CurrentVersion\\App Paths\\opencode-ide.exe"; ValueType: string; ValueName: ""; ValueData: "{app}\\{#ExeBasename}.exe"; Flags: uninsdeletekey',
+	'Root: {#EnvironmentRootKey}; Subkey: "Software\\Microsoft\\Windows\\CurrentVersion\\App Paths\\opencode-ide.exe"; ValueType: none; ValueName: "Path"; Flags: deletevalue',
+	'Root: {#EnvironmentRootKey}; Subkey: "Software\\Microsoft\\Windows\\CurrentVersion\\App Paths\\ergouzicode-preview.exe"; ValueType: string; ValueName: ""; ValueData: "{app}\\{#ExeBasename}.exe"; Flags: uninsdeletekey',
+	'Root: {#EnvironmentRootKey}; Subkey: "Software\\Microsoft\\Windows\\CurrentVersion\\App Paths\\ergouzicode-preview.exe"; ValueType: none; ValueName: "Path"; Flags: deletevalue'
+]) {
+	if (!codeIssText.includes(snippet)) {
+		console.error('[sanitize] failed: build/win32/code.iss.legacyRegistryMigration');
 		failed = true;
 	}
 }
@@ -448,7 +479,7 @@ if (verifiesProductIcons) {
 	}
 
 	const manifest = JSON.parse(fs.readFileSync(path.join(root, 'resources', 'server', 'manifest.json'), 'utf8'));
-	if (manifest.name !== 'OpenCode IDE' || manifest.short_name !== 'OpenCode IDE') {
+	if (manifest.name !== 'Ergouzi IDE' || manifest.short_name !== 'Ergouzi IDE') {
 		console.error('[sanitize] failed: resources/server/manifest.json.productIconBranding');
 		failed = true;
 	}

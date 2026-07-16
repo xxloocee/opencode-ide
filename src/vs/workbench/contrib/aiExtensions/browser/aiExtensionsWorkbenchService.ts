@@ -499,7 +499,7 @@ export class AIExtensionsWorkbenchService extends Disposable implements IAIExten
 			...resolved,
 			installable: false,
 			installState: 'unsupported',
-			risk: localize('aiExtensions.inspect.pluginUnsupported', "This plugin does not expose compatible Skills or MCP configuration. Claude agents, commands, hooks, and runtime plugins are not supported by OpenCode IDE yet."),
+			risk: localize('aiExtensions.inspect.pluginUnsupported', "This plugin does not expose compatible Skills or MCP configuration. Claude agents, commands, hooks, and runtime plugins are not supported by Ergouzi IDE yet."),
 		};
 		if (this.marketplaceDescriptorCache) {
 			this.marketplaceDescriptorCache = this.marketplaceDescriptorCache.map(candidate => candidate.id === id ? inspected : candidate);
@@ -531,7 +531,7 @@ export class AIExtensionsWorkbenchService extends Disposable implements IAIExten
 		const installItem = item.type === 'plugin' ? await this.inspect(id) : await this.resolveInstallDescriptor(item);
 		if (!hasContributions(installItem.contributions)) {
 			if (installItem.type === 'plugin') {
-				throw new Error(localize('aiExtensions.install.pluginUnsupported', "This plugin does not expose compatible Skills or MCP configuration that OpenCode IDE can install yet."));
+				throw new Error(localize('aiExtensions.install.pluginUnsupported', "This plugin does not expose compatible Skills or MCP configuration that Ergouzi IDE can install yet."));
 			}
 			throw new Error(localize('aiExtensions.install.noRuntimeContent', "This AI extension does not expose installable runtime content yet."));
 		}

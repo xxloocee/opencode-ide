@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-# OpenCode IDE 安装包构建说明
+# Ergouzi IDE 安装包构建说明
 
 ## 适用范围
 
@@ -24,12 +24,12 @@
 
 1. 当前项目名
    - 仓库：`opencode-ide`
-   - 宿主产品：OpenCode IDE
+   - 宿主产品：Ergouzi IDE
    - 助手内核仓库：`opencode-private`
 2. 当前真实存在的技术标识
    - 环境变量：`ERGOUZICODE_OPENCODE_SOURCE_DIR`
    - 环境变量：`ERGOUZICODE_OPENCODE_SKIP_BASELINE`
-   - 应用名与产物：`ErgouziCode.exe`、`ErgouziCode Preview`
+   - 应用名与产物：`Ergouzi IDE.exe`、`Ergouzi IDE`
    - 安装器中间文件：`VSCodeSetup.exe`
 
 文档里的原则是：
@@ -54,7 +54,7 @@
 
 ## 目录和职责
 
-### OpenCode IDE
+### Ergouzi IDE
 
 仓库路径：
 
@@ -162,7 +162,7 @@ bun run --cwd D:\Project\Wan\opencode-private\packages\opencode build --single
 
 - `D:\Project\Wan\opencode-private\packages\opencode\dist\opencode-windows-x64\bin\opencode.exe`
 
-### 第二步：构建 OpenCode IDE Windows x64 最小分发目录
+### 第二步：构建 Ergouzi IDE Windows x64 最小分发目录
 
 命令：
 
@@ -190,13 +190,13 @@ npm run gulp "vscode-win32-x64-min"
 
 其中关键文件包括：
 
-- 当前主程序文件名是：`D:\Project\Wan\VSCode-win32-x64\ErgouziCode.exe`
+- 当前主程序文件名是：`D:\Project\Wan\VSCode-win32-x64\Ergouzi IDE.exe`
 - OpenCode runtime：`D:\Project\Wan\VSCode-win32-x64\resources\app\opencode\bin\opencode.exe`
 
 这里要特别注意：
 
-- 产品协作关系已经是 OpenCode IDE + OpenCode
-- 当前 `product.json` 里的应用名是 `ErgouziCode Preview`
+- 产品协作关系已经是 Ergouzi IDE + OpenCode
+- 当前 `product.json` 里的应用名是 `Ergouzi IDE`
 - 运行文件名已经完成产品级重命名
 
 ### 第三步：补齐 Windows 安装器前置工具
@@ -242,7 +242,7 @@ npm run gulp "vscode-win32-x64-user-setup"
 
 注意：
 
-- 当前工作流会把这些中间产物再重命名为 `ErgouziCodeSetup-*` 之类的发布文件名
+- 当前工作流会把这些中间产物再重命名为 `ergouzi-ide-setup-*` 之类的发布文件名
 - 但构建目录里的原始文件名仍然是 `VSCodeSetup.exe`
 
 ## 产物区别
@@ -256,7 +256,7 @@ npm run gulp "vscode-win32-x64-user-setup"
 特点：
 
 - 这是安装前的 staging 目录。
-- 可以直接运行当前实际产物 `ErgouziCode.exe`。
+- 可以直接运行当前实际产物 `Ergouzi IDE.exe`。
 - 适合本机快速验证。
 - 不等于安装器安装后的最终目录。
 
@@ -303,7 +303,7 @@ npm run gulp "vscode-win32-x64-user-setup"
 
 ## 运行时检查要点
 
-如果打开 OpenCode IDE 后怀疑 OpenCode 没接上，可以检查：
+如果打开 Ergouzi IDE 后怀疑 OpenCode 没接上，可以检查：
 
 1. `resources/app/opencode/bin/opencode.exe` 是否存在。
 2. 本地是否监听了 `127.0.0.1` 端口。
@@ -312,7 +312,7 @@ npm run gulp "vscode-win32-x64-user-setup"
 多窗口场景下：
 
 - 每个窗口可能会拉起自己的 OpenCode runtime。
-- 看到多个 `ErgouziCode.exe` 和多个 `opencode.exe` 进程是正常的。
+- 看到多个 `Ergouzi IDE.exe` 和多个 `opencode.exe` 进程是正常的。
 - 这符合 Electron / VS Code 多进程模型。
 
 ## macOS 和 Linux 当前建议
@@ -368,8 +368,8 @@ npm run gulp "vscode-win32-x64-user-setup"
 
 当前构建链路里仍然有少量 VS Code / Inno Setup 历史中间名：
 
-- `product.json` 里是 `ErgouziCode Preview`
-- 可执行文件当前是 `ErgouziCode.exe`
+- `product.json` 里是 `Ergouzi IDE`
+- 可执行文件当前是 `Ergouzi IDE.exe`
 - Inno Setup 中间产物仍是 `VSCodeSetup.exe`
 
 这不影响功能，但意味着“项目协作改名”还没有完全落到最终构建产物。

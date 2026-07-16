@@ -67,6 +67,16 @@ Name: "hungarian"; MessagesFile: "{#RepoDir}\build\win32\i18n\Default.hu.isl,{#R
 Name: "turkish"; MessagesFile: "compiler:Languages\Turkish.isl,{#RepoDir}\build\win32\i18n\messages.tr.isl" {#LocalizedLanguageFile("trk")}
 
 [InstallDelete]
+Type: files; Name: "{app}\OpenCode IDE.exe"; Check: IsNotBackgroundUpdate
+Type: files; Name: "{app}\OpenCode IDE.VisualElementsManifest.xml"; Check: IsNotBackgroundUpdate
+Type: files; Name: "{group}\OpenCode IDE.lnk"; Check: IsNotBackgroundUpdate
+Type: files; Name: "{autodesktop}\OpenCode IDE.lnk"; Check: IsNotBackgroundUpdate
+Type: files; Name: "{userappdata}\Microsoft\Internet Explorer\Quick Launch\OpenCode IDE.lnk"; Check: IsNotBackgroundUpdate
+Type: files; Name: "{app}\ErgouziCode.exe"; Check: IsNotBackgroundUpdate
+Type: files; Name: "{app}\ErgouziCode.VisualElementsManifest.xml"; Check: IsNotBackgroundUpdate
+Type: files; Name: "{group}\ErgouziCode Preview.lnk"; Check: IsNotBackgroundUpdate
+Type: files; Name: "{autodesktop}\ErgouziCode Preview.lnk"; Check: IsNotBackgroundUpdate
+Type: files; Name: "{userappdata}\Microsoft\Internet Explorer\Quick Launch\ErgouziCode Preview.lnk"; Check: IsNotBackgroundUpdate
 Type: filesandordirs; Name: "{app}\{#VersionedResourcesFolder}\resources\app\out"; Check: IsNotBackgroundUpdate
 Type: filesandordirs; Name: "{app}\{#VersionedResourcesFolder}\resources\app\plugins"; Check: IsNotBackgroundUpdate
 Type: filesandordirs; Name: "{app}\{#VersionedResourcesFolder}\resources\app\extensions"; Check: IsNotBackgroundUpdate
@@ -103,6 +113,8 @@ Source: "policies\*"; DestDir: "{code:GetDestDir}\{#VersionedResourcesFolder}\po
 Source: "bin\{#TunnelApplicationName}.exe"; DestDir: "{code:GetDestDir}\bin"; DestName: "{code:GetBinDirTunnelApplicationFilename}"; Flags: ignoreversion skipifsourcedoesntexist
 Source: "bin\{#ApplicationName}.cmd"; DestDir: "{code:GetDestDir}\bin"; DestName: "{code:GetBinDirApplicationCmdFilename}"; Flags: ignoreversion
 Source: "bin\{#ApplicationName}"; DestDir: "{code:GetDestDir}\bin"; DestName: "{code:GetBinDirApplicationFilename}"; Flags: ignoreversion
+Source: "bin\opencode-ide.cmd"; DestDir: "{code:GetDestDir}\bin"; DestName: "opencode-ide.cmd"; Flags: ignoreversion
+Source: "bin\opencode-ide"; DestDir: "{code:GetDestDir}\bin"; DestName: "opencode-ide"; Flags: ignoreversion
 Source: "{#ProductJsonPath}"; DestDir: "{code:GetDestDir}\{#VersionedResourcesFolder}\resources\app"; Flags: ignoreversion
 #ifdef AppxPackageName
 Source: "appx\{#AppxPackage}"; DestDir: "{code:GetDestDir}\{#VersionedResourcesFolder}\appx"; BeforeInstall: RemoveAppxPackage; Flags: ignoreversion; Check: ShouldUseWindows11ContextMenu
@@ -124,6 +136,10 @@ Filename: "{app}\{#ExeBasename}.exe"; Description: "{cm:LaunchProgram,{#NameLong
 #else
 #define SoftwareClassesRootKey "HKLM"
 #endif
+
+; Remove application registrations whose commands point to executables deleted during the rename upgrade.
+Root: {#SoftwareClassesRootKey}; Subkey: "Software\Classes\Applications\OpenCode IDE.exe"; ValueType: none; Flags: deletekey; Check: IsNotBackgroundUpdate
+Root: {#SoftwareClassesRootKey}; Subkey: "Software\Classes\Applications\ErgouziCode.exe"; ValueType: none; Flags: deletekey; Check: IsNotBackgroundUpdate
 
 Root: {#SoftwareClassesRootKey}; Subkey: "Software\Classes\.ascx\OpenWithProgids"; ValueType: none; ValueName: "{#RegValueName}"; Flags: deletevalue uninsdeletevalue; Tasks: associatewithfiles
 Root: {#SoftwareClassesRootKey}; Subkey: "Software\Classes\.ascx\OpenWithProgids"; ValueType: string; ValueName: "{#RegValueName}.ascx"; ValueData: ""; Flags: uninsdeletevalue; Tasks: associatewithfiles
@@ -1300,6 +1316,12 @@ Root: {#SoftwareClassesRootKey}; Subkey: "Software\Classes\Drive\shell\{#RegValu
 #endif
 
 Root: {#EnvironmentRootKey}; Subkey: "{#EnvironmentKey}"; ValueType: expandsz; ValueName: "Path"; ValueData: "{code:AddToPath|{app}\bin}"; Tasks: addtopath; Check: NeedsAddToPath(ExpandConstant('{app}\bin'))
+
+; Preserve legacy App Paths commands while pointing them at the renamed executable.
+Root: {#EnvironmentRootKey}; Subkey: "Software\Microsoft\Windows\CurrentVersion\App Paths\opencode-ide.exe"; ValueType: string; ValueName: ""; ValueData: "{app}\{#ExeBasename}.exe"; Flags: uninsdeletekey
+Root: {#EnvironmentRootKey}; Subkey: "Software\Microsoft\Windows\CurrentVersion\App Paths\opencode-ide.exe"; ValueType: none; ValueName: "Path"; Flags: deletevalue
+Root: {#EnvironmentRootKey}; Subkey: "Software\Microsoft\Windows\CurrentVersion\App Paths\ergouzicode-preview.exe"; ValueType: string; ValueName: ""; ValueData: "{app}\{#ExeBasename}.exe"; Flags: uninsdeletekey
+Root: {#EnvironmentRootKey}; Subkey: "Software\Microsoft\Windows\CurrentVersion\App Paths\ergouzicode-preview.exe"; ValueType: none; ValueName: "Path"; Flags: deletevalue
 
 ; App Paths - allows running code from Explorer address bar
 Root: {#EnvironmentRootKey}; Subkey: "Software\Microsoft\Windows\CurrentVersion\App Paths\{#ApplicationName}.exe"; ValueType: string; ValueName: ""; ValueData: "{app}\{#ExeBasename}.exe"; Flags: uninsdeletekey

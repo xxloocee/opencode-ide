@@ -10,6 +10,106 @@ const repoRoot = path.resolve(fileURLToPath(new URL('../..', import.meta.url)));
 const applyScript = path.join(repoRoot, 'tools', 'sanitize', 'apply.mjs');
 const verifyScript = path.join(repoRoot, 'tools', 'sanitize', 'verify.mjs');
 
+test('release workflow treats manual product versions as data', () => {
+	const workflow = fs.readFileSync(path.join(repoRoot, '.github', 'workflows', 'build-ergouzi-ide-installers.yml'), 'utf8');
+	const runtimeRef = fs.readFileSync(path.join(repoRoot, '.github', 'opencode-runtime-ref'), 'utf8').trim();
+
+	assert.match(runtimeRef, /^[0-9a-f]{40}$/);
+	assert.match(workflow, /INPUT_RELEASE_VERSION: \$\{\{ inputs\.release_version \}\}/);
+	assert.match(workflow, /release_version="\$INPUT_RELEASE_VERSION"/);
+	assert.doesNotMatch(workflow, /release_version="\$\{\{ inputs\.release_version \}\}"/);
+	assert.match(workflow, /if \[\[ "\$GITHUB_EVENT_NAME" == "push" && "\$GITHUB_REF" == refs\/tags\/ergouzi-ide-v\* \]\]/);
+	assert.match(workflow, /if: github\.event_name == 'push' && startsWith\(github\.ref, 'refs\/tags\/ergouzi-ide-v'\)/);
+	assert.match(workflow, /^permissions:\r?\n  contents: read$/m);
+	assert.match(workflow, /^  release:[\s\S]*?^    permissions:\r?\n      contents: write$/m);
+	assert.doesNotMatch(workflow, /^      GITHUB_TOKEN:/m);
+	assert.equal((workflow.match(/persist-credentials: false/g) || []).length, 4);
+	assert.equal((workflow.match(/token: \$\{\{ secrets\.CROSS_REPO_GH_TOKEN \|\| secrets\.UPSTREAM_SYNC_TOKEN \|\| github\.token \}\}/g) || []).length, 2);
+	assert.match(workflow, /tr -d '\\r\\n' < \.github\/opencode-runtime-ref/);
+	assert.match(workflow, /opencode_ref: \$\{\{ steps\.opencode-source\.outputs\.ref \}\}/);
+	assert.match(workflow, /opencode_sha: \$\{\{ steps\.opencode-revision\.outputs\.sha \}\}/);
+	assert.match(workflow, /ref: \$\{\{ needs\.plan\.outputs\.opencode_sha \}\}/);
+	assert.doesNotMatch(workflow, /ref: \$\{\{ env\.OPENCODE_REF \}\}\r?\n          path: opencode-source\r?\n          fetch-depth: 0/);
+	assert.match(workflow, /Refuse to overwrite an existing release/);
+	assert.match(workflow, /softprops\/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2\.6\.2/);
+});
+
+test('Darwin post-package tasks use the compatibility app bundle path', () => {
+	const gulpfile = fs.readFileSync(path.join(repoRoot, 'build', 'gulpfile.vscode.ts'), 'utf8');
+	assert.match(gulpfile, /productAppName: platform === 'darwin' \? \(product\.darwinApplicationName \|\| product\.nameLong\) : product\.nameLong/);
+	assert.match(gulpfile, /path\.join\(outputDir, `\$\{product\.darwinApplicationName \|\| product\.nameLong\}\.app`/);
+
+	const electron = fs.readFileSync(path.join(repoRoot, 'build', 'lib', 'electron.ts'), 'utf8');
+	assert.match(electron, /productAppName: process\.platform === 'darwin' \? \(product\.darwinApplicationName \|\| product\.nameLong\) : product\.nameLong/);
+
+	for (const rel of ['build/darwin/create-dmg.ts', 'build/darwin/create-universal-app.ts', 'build/darwin/sign.ts']) {
+		const text = fs.readFileSync(path.join(repoRoot, rel), 'utf8');
+		assert.match(text, /const appName = \(product\.darwinApplicationName \|\| product\.nameLong\) \+ '\.app';/, rel);
+		assert.doesNotMatch(text, /product\.nameLong \+ '\.app'|`\$\{product\.nameLong\}\.app`/, rel);
+	}
+});
+
+test('release guide stages required implementation files and publishes from main', () => {
+	const guide = fs.readFileSync(path.join(repoRoot, 'docs', 'ergouzi-ide-release-plan.zh.md'), 'utf8');
+
+	for (const requiredPath of [
+		'.github/opencode-runtime-ref',
+		'build/darwin/create-dmg.ts',
+		'build/darwin/create-universal-app.ts',
+		'build/darwin/sign.ts',
+		'build/gulpfile.vscode.ts',
+		'build/lib/electron.ts',
+		'build/win32/code.iss',
+		'package.json',
+		'product.json',
+		':(glob).github/workflows/build-*-installers.yml',
+		':(glob)scripts/*win32-system-setup.ps1',
+		':(glob)docs/*release-plan.zh.md'
+	]) {
+		assert.match(guide, new RegExp(requiredPath.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+	}
+	assert.match(guide, /git checkout main/);
+	assert.match(guide, /git push origin HEAD:main/);
+	assert.doesNotMatch(guide, /release\/opencode-clean/);
+	assert.match(guide, /在 `main` 上保留自动净化脚本/);
+
+	const releaseFlow = guide.slice(guide.indexOf('## 测试 tag 流程'));
+	assert.match(releaseFlow, /function Invoke-NativeStep/);
+	assert.match(releaseFlow, /if \(\$LASTEXITCODE -ne 0\) \{\s*throw "\$Label failed with exit code \$LASTEXITCODE"/);
+	assert.doesNotMatch(releaseFlow, /^(?:git|node)\s/m);
+	for (const command of [
+		'git commit -m "chore: unify Ergouzi IDE release identity"',
+		'git fetch origin',
+		'git rebase origin/main',
+		'git push origin HEAD:main',
+		'git rev-parse HEAD',
+		'git rev-parse origin/main',
+		'git tag "ergouzi-ide-v$version"',
+	]) {
+		assert.match(releaseFlow, new RegExp(command.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+	}
+	assert.ok(releaseFlow.indexOf('git commit -m') < releaseFlow.indexOf('git fetch origin'));
+	assert.ok(releaseFlow.indexOf('git fetch origin') < releaseFlow.indexOf('git rebase origin/main'));
+	assert.ok(releaseFlow.indexOf('git rebase origin/main') < releaseFlow.indexOf('git push origin HEAD:main'));
+	assert.ok(releaseFlow.indexOf('$localHead =') < releaseFlow.indexOf('git tag "ergouzi-ide-v$version"'));
+
+	for (const protectedCommand of [
+		"Invoke-NativeStep 'create release tag' { git tag \"ergouzi-ide-v$version\" }",
+		"Invoke-NativeStep 'push release tag' { git push origin \"ergouzi-ide-v$version\" }",
+	]) {
+		assert.match(releaseFlow, new RegExp(protectedCommand.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+	}
+	for (const repeatedProtectedCommand of [
+		"Invoke-NativeStep 'run sanitizer tests' { node tools\\sanitize\\sanitize.test.mjs }",
+		"Invoke-NativeStep 'check working tree diff' { git diff --check }",
+	]) {
+		const commandPattern = new RegExp(repeatedProtectedCommand.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g');
+		assert.equal((releaseFlow.match(commandPattern) || []).length, 1);
+	}
+	assert.match(releaseFlow, /Invoke-NativeStep 'rerun sanitizer tests' \{ node tools\\sanitize\\sanitize\.test\.mjs \}/);
+	assert.match(releaseFlow, /Invoke-NativeStep 'recheck working tree diff' \{ git diff --check \}/);
+});
+
 test('apply rejects unknown sanitize steps', () => {
 	const root = makeFixtureRoot();
 	writeJson(path.join(root, 'config', 'sanitize', 'bad-profile.json'), {
@@ -190,7 +290,7 @@ test('apply clean-full defaults startup editor to none', () => {
 test('apply clean-full makes Windows packaging tools source optional', () => {
 	const root = makeFixtureRoot({ includeCoreWorkbenchChatEntry: true });
 	const codeIssPath = path.join(root, 'build', 'win32', 'code.iss');
-	writeText(codeIssPath, 'AppPublisher=OpenCode IDE\nSource: "tools\\*"; DestDir: "{app}\\{#VersionedResourcesFolder}\\tools"; Flags: ignoreversion\n');
+	writeText(codeIssPath, fs.readFileSync(codeIssPath, 'utf8').replace('Flags: ignoreversion skipifsourcedoesntexist', 'Flags: ignoreversion'));
 
 	const first = runNode(applyScript, `--root=${root}`, '--profile=clean-full');
 	const second = runNode(applyScript, `--root=${root}`, '--profile=clean-full');
@@ -200,6 +300,118 @@ test('apply clean-full makes Windows packaging tools source optional', () => {
 	const text = fs.readFileSync(codeIssPath, 'utf8');
 	assert.match(text, /Source: "tools\\\*"; DestDir: "\{app\}\\\{#VersionedResourcesFolder\}\\tools"; Flags: ignoreversion skipifsourcedoesntexist/);
 	assert.doesNotMatch(text, /skipifsourcedoesntexist skipifsourcedoesntexist/);
+});
+
+test('apply clean-full installs legacy Windows launchers and removes released names on upgrade', () => {
+	const root = makeFixtureRoot({ includeCoreWorkbenchChatEntry: true });
+	const codeIssPath = path.join(root, 'build', 'win32', 'code.iss');
+	writeText(codeIssPath, '[InstallDelete]\nType: files; Name: "{app}\\OpenCode IDE.exe"; Check: IsNotBackgroundUpdate\nAppPublisher=Microsoft Corporation\nSource: "tools\\*"; DestDir: "{app}\\{#VersionedResourcesFolder}\\tools"; Flags: ignoreversion\nSource: "bin\\{#ApplicationName}.cmd"; DestDir: "{code:GetDestDir}\\bin"; DestName: "{code:GetBinDirApplicationCmdFilename}"; Flags: ignoreversion\nSource: "bin\\{#ApplicationName}"; DestDir: "{code:GetDestDir}\\bin"; DestName: "{code:GetBinDirApplicationFilename}"; Flags: ignoreversion\nSource: "bin\\opencode-ide.cmd"; DestDir: "{code:GetDestDir}\\bin"; DestName: "opencode-ide.cmd"; Flags: ignoreversion\n[Registry]\n#ifdef UnrelatedRegistryFeature\n#define UnrelatedRegistryFeatureEnabled\n#endif\n#if "user" == InstallTarget\n#define SoftwareClassesRootKey "HKCU"\n#else\n#define SoftwareClassesRootKey "HKLM"\n#endif\nRoot: {#SoftwareClassesRootKey}; Subkey: "Software\\Classes\\.ascx\\OpenWithProgids"; ValueType: none\n#if "user" == InstallTarget\n#define EnvironmentRootKey "HKCU"\n#else\n#define EnvironmentRootKey "HKLM"\n#endif\n; App Paths - allows running code from Explorer address bar\nRoot: {#EnvironmentRootKey}; Subkey: "Software\\Microsoft\\Windows\\CurrentVersion\\App Paths\\{#ApplicationName}.exe"; ValueType: string; ValueName: ""; ValueData: "{app}\\{#ExeBasename}.exe"; Flags: uninsdeletekey\n');
+
+	const first = runNode(applyScript, `--root=${root}`, '--profile=clean-full');
+	const second = runNode(applyScript, `--root=${root}`, '--profile=clean-full');
+
+	assert.equal(first.status, 0, first.stderr + first.stdout);
+	assert.equal(second.status, 0, second.stderr + second.stdout);
+	const text = fs.readFileSync(codeIssPath, 'utf8');
+	assert.equal((text.match(/Source: "bin\\opencode-ide\.cmd"/g) || []).length, 1);
+	assert.equal((text.match(/Source: "bin\\opencode-ide";/g) || []).length, 1);
+	assert.equal((text.match(/Name: "\{app\}\\OpenCode IDE\.exe"/g) || []).length, 1);
+	assert.match(text, /Name: "\{autodesktop\}\\OpenCode IDE\.lnk"/);
+	assert.equal((text.match(/Name: "\{app\}\\ErgouziCode\.exe"/g) || []).length, 1);
+	assert.equal((text.match(/Name: "\{app\}\\ErgouziCode\.VisualElementsManifest\.xml"/g) || []).length, 1);
+	assert.match(text, /Name: "\{autodesktop\}\\ErgouziCode Preview\.lnk"/);
+	assert.equal((text.match(/Name: "\{userappdata\}\\Microsoft\\Internet Explorer\\Quick Launch\\OpenCode IDE\.lnk"/g) || []).length, 1);
+	assert.equal((text.match(/Name: "\{userappdata\}\\Microsoft\\Internet Explorer\\Quick Launch\\ErgouziCode Preview\.lnk"/g) || []).length, 1);
+	assert.equal((text.match(/Software\\Classes\\Applications\\OpenCode IDE\.exe/g) || []).length, 1);
+	assert.equal((text.match(/Software\\Classes\\Applications\\ErgouziCode\.exe/g) || []).length, 1);
+	assert.ok(text.indexOf('Software\\Classes\\Applications\\OpenCode IDE.exe') > text.indexOf('#define SoftwareClassesRootKey "HKLM"\n#endif'));
+	assert.ok(text.indexOf('Software\\Classes\\Applications\\OpenCode IDE.exe') < text.indexOf('Software\\Classes\\.ascx\\OpenWithProgids'));
+	assert.equal((text.match(/App Paths\\opencode-ide\.exe"; ValueType: string/g) || []).length, 1);
+	assert.equal((text.match(/App Paths\\ergouzicode-preview\.exe"; ValueType: string/g) || []).length, 1);
+	assert.equal((text.match(/App Paths\\opencode-ide\.exe"; ValueType: none; ValueName: "Path"; Flags: deletevalue/g) || []).length, 1);
+	assert.equal((text.match(/App Paths\\ergouzicode-preview\.exe"; ValueType: none; ValueName: "Path"; Flags: deletevalue/g) || []).length, 1);
+});
+
+test('apply clean-full rejects missing Windows registry insertion anchors', () => {
+	for (const [label, mutate, expected] of [
+		[
+			'Registry section',
+			text => text
+				.replace('[Registry]', '[MissingRegistry]')
+				.split('\n').filter(line => !line.includes('Software\\Classes\\Applications\\')).join('\n'),
+			/SoftwareClassesRootKey insertion anchor/,
+		],
+		[
+			'App Paths marker',
+			text => text
+				.replace('; App Paths - allows running code from Explorer address bar', '; Missing App Paths marker')
+				.split('\n').filter(line => !line.includes('CurrentVersion\\App Paths\\')).join('\n'),
+			/App Paths insertion anchor/,
+		],
+	]) {
+		const root = makeFixtureRoot({ includeCoreWorkbenchChatEntry: true });
+		const codeIssPath = path.join(root, 'build', 'win32', 'code.iss');
+		writeText(codeIssPath, mutate(fs.readFileSync(codeIssPath, 'utf8')));
+
+		const result = runNode(applyScript, `--root=${root}`, '--profile=clean-full');
+
+		assert.notEqual(result.status, 0, label);
+		assert.match(result.stderr + result.stdout, expected, label);
+	}
+});
+
+test('verify clean-full rejects a missing Windows Registry section', () => {
+	const root = makeFixtureRoot({ includeCoreWorkbenchChatEntry: true });
+	const codeIssPath = path.join(root, 'build', 'win32', 'code.iss');
+	writeText(codeIssPath, fs.readFileSync(codeIssPath, 'utf8').replace('[Registry]', '[MissingRegistry]'));
+
+	const result = runNode(verifyScript, `--root=${root}`, '--profile=clean-full');
+
+	assert.notEqual(result.status, 0);
+	assert.match(result.stderr + result.stdout, /legacyRegistryMigration/);
+});
+
+test('apply clean-full preserves the previous Linux package and command identity', () => {
+	const root = makeFixtureRoot({ includeCoreWorkbenchChatEntry: true });
+	writeText(path.join(root, 'resources', 'linux', 'debian', 'control.template'), 'Maintainer: Microsoft Corporation <vscode-linux@microsoft.com>\nHomepage: https://code.visualstudio.com/\nProvides: visual-studio-@@NAME@@\nConflicts: visual-studio-@@NAME@@\nReplaces: visual-studio-@@NAME@@\n');
+	writeText(path.join(root, 'resources', 'linux', 'debian', 'postinst.template'), 'rm -f /usr/bin/@@NAME@@\nln -s /usr/share/@@NAME@@/bin/@@NAME@@ /usr/bin/@@NAME@@\n# packages.microsoft.com/repos/code\nif [ "@@NAME@@" != "code-oss" ]; then\n\texit 0\nfi\n');
+	writeText(path.join(root, 'resources', 'linux', 'debian', 'postrm.template'), 'rm -f /usr/bin/@@NAME@@\n');
+	writeText(path.join(root, 'resources', 'linux', 'rpm', 'code.spec.template'), 'Vendor:   Microsoft Corporation\nPackager: Visual Studio Code Team <vscode-linux@microsoft.com>\nRecommends: @@RECOMMENDS@@\nln -s %{_datadir}/%{name}/bin/%{name} %{buildroot}%{_bindir}/%{name}\n%{_bindir}/%{name}\n');
+
+	const first = runNode(applyScript, `--root=${root}`, '--profile=clean-full');
+	const second = runNode(applyScript, `--root=${root}`, '--profile=clean-full');
+
+	assert.equal(first.status, 0, first.stderr + first.stdout);
+	assert.equal(second.status, 0, second.stderr + second.stdout);
+	const debianControl = fs.readFileSync(path.join(root, 'resources', 'linux', 'debian', 'control.template'), 'utf8');
+	assert.equal((debianControl.match(/^Provides: visual-studio-@@NAME@@, opencode-ide$/gm) || []).length, 1);
+	assert.equal((debianControl.match(/^Conflicts: visual-studio-@@NAME@@, opencode-ide$/gm) || []).length, 1);
+	assert.equal((debianControl.match(/^Replaces: visual-studio-@@NAME@@, opencode-ide$/gm) || []).length, 1);
+	assert.match(fs.readFileSync(path.join(root, 'resources', 'linux', 'debian', 'postinst.template'), 'utf8'), /\/usr\/bin\/opencode-ide/);
+	const postrm = fs.readFileSync(path.join(root, 'resources', 'linux', 'debian', 'postrm.template'), 'utf8');
+	assert.equal((postrm.match(/^\s*rm -f \/usr\/bin\/opencode-ide$/gm) || []).length, 1);
+	const rpm = fs.readFileSync(path.join(root, 'resources', 'linux', 'rpm', 'code.spec.template'), 'utf8');
+	assert.equal((rpm.match(/^Provides: opencode-ide = %\{version\}-%\{release\}$/gm) || []).length, 1);
+	assert.equal((rpm.match(/^Obsoletes: opencode-ide < %\{version\}-%\{release\}$/gm) || []).length, 1);
+	assert.equal((rpm.match(/^ln -s .*%\{_bindir\}\/opencode-ide$/gm) || []).length, 1);
+	assert.equal((rpm.match(/^%\{_bindir\}\/opencode-ide$/gm) || []).length, 1);
+});
+
+test('verify clean-full rejects missing Linux package replacement declarations', () => {
+	for (const [rel, snippet] of [
+		['resources/linux/debian/control.template', 'Conflicts: visual-studio-@@NAME@@, opencode-ide\n'],
+		['resources/linux/debian/control.template', 'Replaces: visual-studio-@@NAME@@, opencode-ide\n'],
+		['resources/linux/rpm/code.spec.template', 'Obsoletes: opencode-ide < %{version}-%{release}\n'],
+	]) {
+		const root = makeFixtureRoot({ includeCoreWorkbenchChatEntry: true });
+		const file = path.join(root, rel);
+		writeText(file, fs.readFileSync(file, 'utf8').replace(snippet, ''));
+
+		const result = runNode(verifyScript, `--root=${root}`, '--profile=clean-full');
+
+		assert.notEqual(result.status, 0, `${rel}: ${snippet}`);
+		assert.match(result.stderr + result.stdout, new RegExp(rel.replaceAll('/', '[\\\\/]')));
+	}
 });
 
 test('verify clean-full rejects welcome page as startup editor default', () => {
@@ -218,8 +430,8 @@ test('apply clean-full rewrites product icons used by packaging and workbench UI
 
 	assert.equal(result.status, 0, result.stderr + result.stdout);
 	assert.deepEqual(JSON.parse(fs.readFileSync(path.join(root, 'resources', 'server', 'manifest.json'), 'utf8')), {
-		name: 'OpenCode IDE',
-		short_name: 'OpenCode IDE',
+		name: 'Ergouzi IDE',
+		short_name: 'Ergouzi IDE',
 		icons: []
 	});
 	assertProductIconEquals(root, 'code-icon.svg', 'src/vs/workbench/browser/media/code-icon.svg');
@@ -295,21 +507,22 @@ function makeFixtureRoot(options = {}) {
 	});
 
 	writeJson(path.join(root, 'product.json'), {
-		nameShort: 'OpenCode IDE',
-		nameLong: 'OpenCode IDE',
-		applicationName: 'opencode-ide',
+		nameShort: 'Ergouzi IDE',
+		nameLong: 'Ergouzi IDE',
+		applicationName: 'ergouzi-ide',
 		dataFolderName: '.opencode-ide',
 		sharedDataFolderName: '.opencode-ide-shared',
 		serverApplicationName: 'opencode-ide-server',
 		serverDataFolderName: '.opencode-ide-server',
 		tunnelApplicationName: 'opencode-ide-tunnel',
-		win32DirName: 'OpenCode IDE',
-		win32NameVersion: 'OpenCode IDE',
+		win32DirName: 'Ergouzi IDE',
+		win32NameVersion: 'Ergouzi IDE',
 		win32RegValueName: 'OpenCodeIDE',
 		win32AppUserModelId: 'OpenCode.IDE',
-		win32ShellNameShort: 'Open&Code IDE',
+		win32ShellNameShort: '&Ergouzi IDE',
+		darwinApplicationName: 'OpenCode IDE',
 		darwinBundleIdentifier: 'com.opencode.ide',
-		linuxIconName: 'opencode-ide',
+		linuxIconName: 'ergouzi-ide',
 		urlProtocol: 'opencode-ide',
 		defaultChatAgent: {
 			extensionId: 'opencode.ide-placeholder',
@@ -395,7 +608,7 @@ function makeFixtureRoot(options = {}) {
 		"import './contrib/chat/browser/chat.contribution.js';"
 	].join('\n') : "import './contrib/chat/browser/chat.contribution.js';\n");
 	writeText(path.join(root, 'src', 'vs', 'sessions', 'electron-browser', 'sessions.main.ts'), options.includeSessionsOfficialEntries ? "import { IDefaultAccountService } from '../../platform/defaultAccount/common/defaultAccount.js';\nimport { DefaultAccountService } from '../../workbench/services/accounts/browser/defaultAccount.js';\nconst defaultAccountService = this._register(new DefaultAccountService(productService));\nserviceCollection.set(IDefaultAccountService, defaultAccountService);\n" : "import { IDefaultAccountService, NullDefaultAccountService } from '../../platform/defaultAccount/common/defaultAccount.js';\nconst defaultAccountService = this._register(new NullDefaultAccountService());\n");
-	writeText(path.join(root, 'src', 'vs', 'platform', 'product', 'common', 'product.ts'), options.includeProductFallbackCopilotDefaults ? "Object.assign(product, {\n\tnameShort: 'Code - OSS Dev',\n\tnameLong: 'Code - OSS Dev',\n\tapplicationName: 'code-oss',\n\tdataFolderName: '.vscode-oss',\n\turlProtocol: 'code-oss',\n\treportIssueUrl: 'https://github.com/microsoft/vscode/issues/new',\n\tlicenseUrl: 'https://github.com/microsoft/vscode/blob/main/LICENSE.txt',\n\tserverLicenseUrl: 'https://github.com/microsoft/vscode/blob/main/LICENSE.txt',\n\tdefaultChatAgent: {\n\t\textensionId: 'GitHub.copilot',\n\t\tchatExtensionId: 'GitHub.copilot-chat',\n\t\tprovider: { default: { id: 'github', name: 'GitHub' }, enterprise: { id: 'github-enterprise', name: 'GitHub Enterprise' } },\n\t\tproviderScopes: []\n\t}\n});\n" : "Object.assign(product, {\n\tnameShort: 'OpenCode IDE Dev',\n\tnameLong: 'OpenCode IDE Dev',\n\tapplicationName: 'opencode-ide',\n\tdataFolderName: '.opencode-ide',\n\turlProtocol: 'opencode-ide',\n\tdefaultChatAgent: {\n\t\textensionId: 'opencode.ide-placeholder',\n\t\tchatExtensionId: 'opencode.ide-placeholder-chat',\n\t\tprovider: { default: { id: 'opencode', name: 'OpenCode' }, enterprise: { id: 'opencode-enterprise', name: 'OpenCode Enterprise' } },\n\t\tproviderScopes: []\n\t}\n});\n");
+	writeText(path.join(root, 'src', 'vs', 'platform', 'product', 'common', 'product.ts'), options.includeProductFallbackCopilotDefaults ? "Object.assign(product, {\n\tnameShort: 'Code - OSS Dev',\n\tnameLong: 'Code - OSS Dev',\n\tapplicationName: 'code-oss',\n\tdataFolderName: '.vscode-oss',\n\turlProtocol: 'code-oss',\n\treportIssueUrl: 'https://github.com/microsoft/vscode/issues/new',\n\tlicenseUrl: 'https://github.com/microsoft/vscode/blob/main/LICENSE.txt',\n\tserverLicenseUrl: 'https://github.com/microsoft/vscode/blob/main/LICENSE.txt',\n\tdefaultChatAgent: {\n\t\textensionId: 'GitHub.copilot',\n\t\tchatExtensionId: 'GitHub.copilot-chat',\n\t\tprovider: { default: { id: 'github', name: 'GitHub' }, enterprise: { id: 'github-enterprise', name: 'GitHub Enterprise' } },\n\t\tproviderScopes: []\n\t}\n});\n" : "Object.assign(product, {\n\tnameShort: 'Ergouzi IDE Dev',\n\tnameLong: 'Ergouzi IDE Dev',\n\tapplicationName: 'ergouzi-ide',\n\tdataFolderName: '.opencode-ide',\n\turlProtocol: 'opencode-ide',\n\tdefaultChatAgent: {\n\t\textensionId: 'opencode.ide-placeholder',\n\t\tchatExtensionId: 'opencode.ide-placeholder-chat',\n\t\tprovider: { default: { id: 'opencode', name: 'OpenCode' }, enterprise: { id: 'opencode-enterprise', name: 'OpenCode Enterprise' } },\n\t\tproviderScopes: []\n\t}\n});\n");
 	writeText(path.join(root, 'src', 'vs', 'workbench', 'contrib', 'welcomeOnboarding', 'common', 'onboardingTypes.ts'), options.includeOnboardingSignInDefault ? "export const ONBOARDING_STEPS = [\n\tOnboardingStepId.SignIn,\n\tOnboardingStepId.Personalize,\n];\n" : "export const ONBOARDING_STEPS = [\n\tOnboardingStepId.Personalize,\n];\n");
 	writeText(path.join(root, 'src', 'vs', 'workbench', 'contrib', 'welcomeOnboarding', 'browser', 'onboardingVariationA.ts'), options.includeOnboardingSignInDefault
 		? "private readonly steps = defaultChat ? ONBOARDING_STEPS : ONBOARDING_STEPS.filter(step => step !== OnboardingStepId.SignIn);\n"
@@ -404,7 +617,7 @@ function makeFixtureRoot(options = {}) {
 			: "private readonly steps = ONBOARDING_STEPS.filter(step => step !== OnboardingStepId.SignIn);\n");
 	writeText(path.join(root, 'src', 'vs', 'workbench', 'contrib', 'welcomeGettingStarted', 'common', 'gettingStartedContent.ts'), options.includeOfficialWelcomeDefaults
 		? "title: localize('gettingStarted.setup.title', \"Get started with VS Code\"),\nwalkthroughPageTitle: localize('gettingStarted.setup.walkthroughPageTitle', 'Setup VS Code'),\ncreateCopilotSetupStep('CopilotSetupAnonymous', CopilotAnonymousButton, 'chatAnonymous', true),\nButton(localize('watch', \"Watch Tutorial\"), 'https://aka.ms/vscode-getting-started-video')\nButton(localize('workspaceTrust', \"Workspace Trust\"), 'https://code.visualstudio.com/docs/editor/workspace-trust')\n"
-		: "title: localize('gettingStarted.setup.title', \"Get started with OpenCode IDE\"),\nwalkthroughPageTitle: localize('gettingStarted.setup.walkthroughPageTitle', 'Setup OpenCode IDE'),\nButton(localize('workspaceTrust', \"Workspace Trust\"), 'command:toSide:workbench.trust.manage')\n");
+		: "title: localize('gettingStarted.setup.title', \"Get started with Ergouzi IDE\"),\nwalkthroughPageTitle: localize('gettingStarted.setup.walkthroughPageTitle', 'Setup Ergouzi IDE'),\nButton(localize('workspaceTrust', \"Workspace Trust\"), 'command:toSide:workbench.trust.manage')\n");
 	writeText(path.join(root, 'src', 'vs', 'workbench', 'contrib', 'welcomeGettingStarted', 'browser', 'gettingStarted.contribution.ts'), `'workbench.startupEditor': {
 	'default': '${options.includeStartupWelcomeDefault ? 'welcomePage' : 'none'}',
 }
@@ -419,30 +632,31 @@ function makeFixtureRoot(options = {}) {
 
 	writeText(path.join(root, 'resources', 'linux', 'code.desktop'), 'Keywords=opencode;ide;\n');
 	writeText(path.join(root, 'resources', 'linux', 'code.appdata.xml'), 'https://github.com/xxloocee/opencode-ide\n');
-	writeText(path.join(root, 'resources', 'linux', 'snap', 'snapcraft.yaml'), 'summary: OpenCode IDE\n');
-	writeText(path.join(root, 'resources', 'linux', 'debian', 'control.template'), 'Maintainer: OpenCode IDE Maintainers <noreply@opencode-ide.local>\n');
+	writeText(path.join(root, 'resources', 'linux', 'snap', 'snapcraft.yaml'), 'summary: Ergouzi IDE\n');
+	writeText(path.join(root, 'resources', 'linux', 'debian', 'control.template'), 'Maintainer: Ergouzi IDE Maintainers <noreply@ergouzi-ide.local>\nProvides: visual-studio-@@NAME@@, opencode-ide\nConflicts: visual-studio-@@NAME@@, opencode-ide\nReplaces: visual-studio-@@NAME@@, opencode-ide\n');
 	writeText(path.join(root, 'resources', 'linux', 'debian', 'templates.template'), 'Template: @@NAME@@/configure-external-repo\n');
-	writeText(path.join(root, 'resources', 'linux', 'debian', 'postinst.template'), 'OpenCode IDE packages do not configure any external apt repository.\n');
-	writeText(path.join(root, 'resources', 'linux', 'rpm', 'code.spec.template'), 'Vendor:   OpenCode IDE\n');
-	writeText(path.join(root, 'build', 'win32', 'code.iss'), 'AppPublisher=OpenCode IDE\nSource: "tools\\*"; DestDir: "{app}\\{#VersionedResourcesFolder}\\tools"; Flags: ignoreversion skipifsourcedoesntexist\n');
+	writeText(path.join(root, 'resources', 'linux', 'debian', 'postinst.template'), 'Ergouzi IDE packages do not configure any external apt repository.\nln -s /usr/share/@@NAME@@/bin/@@NAME@@ /usr/bin/opencode-ide\n');
+	writeText(path.join(root, 'resources', 'linux', 'debian', 'postrm.template'), 'rm -f /usr/bin/opencode-ide\n');
+	writeText(path.join(root, 'resources', 'linux', 'rpm', 'code.spec.template'), 'Vendor:   Ergouzi IDE\nProvides: opencode-ide = %{version}-%{release}\nObsoletes: opencode-ide < %{version}-%{release}\n%{_bindir}/opencode-ide\n');
+	writeText(path.join(root, 'build', 'win32', 'code.iss'), '[InstallDelete]\nType: files; Name: "{app}\\OpenCode IDE.exe"; Check: IsNotBackgroundUpdate\nType: files; Name: "{autodesktop}\\OpenCode IDE.lnk"; Check: IsNotBackgroundUpdate\nType: files; Name: "{app}\\ErgouziCode.exe"; Check: IsNotBackgroundUpdate\nType: files; Name: "{autodesktop}\\ErgouziCode Preview.lnk"; Check: IsNotBackgroundUpdate\nAppPublisher=Ergouzi IDE\n[Registry]\nRoot: {#SoftwareClassesRootKey}; Subkey: "Software\\Classes\\Applications\\OpenCode IDE.exe"; ValueType: none; Flags: deletekey; Check: IsNotBackgroundUpdate\nRoot: {#SoftwareClassesRootKey}; Subkey: "Software\\Classes\\Applications\\ErgouziCode.exe"; ValueType: none; Flags: deletekey; Check: IsNotBackgroundUpdate\nRoot: {#EnvironmentRootKey}; Subkey: "Software\\Microsoft\\Windows\\CurrentVersion\\App Paths\\opencode-ide.exe"; ValueType: string; ValueName: ""; ValueData: "{app}\\{#ExeBasename}.exe"; Flags: uninsdeletekey\nRoot: {#EnvironmentRootKey}; Subkey: "Software\\Microsoft\\Windows\\CurrentVersion\\App Paths\\opencode-ide.exe"; ValueType: none; ValueName: "Path"; Flags: deletevalue\nRoot: {#EnvironmentRootKey}; Subkey: "Software\\Microsoft\\Windows\\CurrentVersion\\App Paths\\ergouzicode-preview.exe"; ValueType: string; ValueName: ""; ValueData: "{app}\\{#ExeBasename}.exe"; Flags: uninsdeletekey\nRoot: {#EnvironmentRootKey}; Subkey: "Software\\Microsoft\\Windows\\CurrentVersion\\App Paths\\ergouzicode-preview.exe"; ValueType: none; ValueName: "Path"; Flags: deletevalue\n; App Paths - allows running code from Explorer address bar\nSource: "tools\\*"; DestDir: "{app}\\{#VersionedResourcesFolder}\\tools"; Flags: ignoreversion skipifsourcedoesntexist\nSource: "bin\\opencode-ide.cmd"; DestDir: "{code:GetDestDir}\\bin"; DestName: "opencode-ide.cmd"; Flags: ignoreversion\nSource: "bin\\opencode-ide"; DestDir: "{code:GetDestDir}\\bin"; DestName: "opencode-ide"; Flags: ignoreversion\n');
 	writeJson(path.join(root, 'resources', 'server', 'manifest.json'), {
-		name: options.includeUpstreamProductIcons ? 'Code - OSS' : 'OpenCode IDE',
-		short_name: options.includeUpstreamProductIcons ? 'Code - OSS' : 'OpenCode IDE',
+		name: options.includeUpstreamProductIcons ? 'Code - OSS' : 'Ergouzi IDE',
+		short_name: options.includeUpstreamProductIcons ? 'Code - OSS' : 'Ergouzi IDE',
 		icons: []
 	});
 	writeProductIconFixtures(root, options.includeUpstreamProductIcons);
-	writeText(path.join(root, 'build', 'win32', 'i18n', 'messages.en.isl'), 'UpdatingVisualStudioCode=OpenCode IDE is updating...\n');
-	writeText(path.join(root, 'src', 'vs', 'workbench', 'contrib', 'extensions', 'browser', 'extensions.contribution.ts'), 'const text = "OpenCode IDE extensions";\n');
-	writeText(path.join(root, 'src', 'vs', 'workbench', 'contrib', 'extensions', 'browser', 'extensionsActions.ts'), 'const text = "OpenCode IDE extensions";\n');
-	writeText(path.join(root, 'src', 'vs', 'workbench', 'contrib', 'extensions', 'browser', 'extensionsWorkbenchService.ts'), 'const text = "OpenCode IDE extensions";\n');
-	writeText(path.join(root, 'src', 'vs', 'workbench', 'contrib', 'extensions', 'common', 'extensionsFileTemplate.ts'), 'const text = "OpenCode IDE extensions";\n');
-	writeText(path.join(root, 'src', 'vs', 'workbench', 'contrib', 'extensions', 'common', 'installExtensionsTool.ts'), 'const text = "OpenCode IDE extensions";\n');
-	writeText(path.join(root, 'src', 'vs', 'workbench', 'contrib', 'extensions', 'common', 'searchExtensionsTool.ts'), 'const text = "OpenCode IDE extensions";\n');
-	writeText(path.join(root, 'src', 'vs', 'workbench', 'contrib', 'extensions', 'electron-browser', 'extensionsSlowActions.ts'), 'const text = "OpenCode IDE extensions";\n');
-	writeText(path.join(root, 'src', 'vs', 'workbench', 'contrib', 'issue', 'browser', 'baseIssueReporterService.ts'), 'const text = "OpenCode IDE issue reporter";\n');
-	writeText(path.join(root, 'src', 'vs', 'workbench', 'contrib', 'issue', 'browser', 'issueReporterModel.ts'), 'const text = "OpenCode IDE issue reporter";\n');
-	writeText(path.join(root, 'src', 'vs', 'workbench', 'contrib', 'issue', 'browser', 'issueReporterPage.ts'), 'const text = "OpenCode IDE issue reporter";\n');
-	writeText(path.join(root, 'src', 'vs', 'workbench', 'contrib', 'opencode', 'browser', 'opencode.contribution.ts'), 'const text = "OpenCode IDE";\n');
+	writeText(path.join(root, 'build', 'win32', 'i18n', 'messages.en.isl'), 'UpdatingVisualStudioCode=Ergouzi IDE is updating...\n');
+	writeText(path.join(root, 'src', 'vs', 'workbench', 'contrib', 'extensions', 'browser', 'extensions.contribution.ts'), 'const text = "Ergouzi IDE extensions";\n');
+	writeText(path.join(root, 'src', 'vs', 'workbench', 'contrib', 'extensions', 'browser', 'extensionsActions.ts'), 'const text = "Ergouzi IDE extensions";\n');
+	writeText(path.join(root, 'src', 'vs', 'workbench', 'contrib', 'extensions', 'browser', 'extensionsWorkbenchService.ts'), 'const text = "Ergouzi IDE extensions";\n');
+	writeText(path.join(root, 'src', 'vs', 'workbench', 'contrib', 'extensions', 'common', 'extensionsFileTemplate.ts'), 'const text = "Ergouzi IDE extensions";\n');
+	writeText(path.join(root, 'src', 'vs', 'workbench', 'contrib', 'extensions', 'common', 'installExtensionsTool.ts'), 'const text = "Ergouzi IDE extensions";\n');
+	writeText(path.join(root, 'src', 'vs', 'workbench', 'contrib', 'extensions', 'common', 'searchExtensionsTool.ts'), 'const text = "Ergouzi IDE extensions";\n');
+	writeText(path.join(root, 'src', 'vs', 'workbench', 'contrib', 'extensions', 'electron-browser', 'extensionsSlowActions.ts'), 'const text = "Ergouzi IDE extensions";\n');
+	writeText(path.join(root, 'src', 'vs', 'workbench', 'contrib', 'issue', 'browser', 'baseIssueReporterService.ts'), 'const text = "Ergouzi IDE issue reporter";\n');
+	writeText(path.join(root, 'src', 'vs', 'workbench', 'contrib', 'issue', 'browser', 'issueReporterModel.ts'), 'const text = "Ergouzi IDE issue reporter";\n');
+	writeText(path.join(root, 'src', 'vs', 'workbench', 'contrib', 'issue', 'browser', 'issueReporterPage.ts'), 'const text = "Ergouzi IDE issue reporter";\n');
+	writeText(path.join(root, 'src', 'vs', 'workbench', 'contrib', 'opencode', 'browser', 'opencode.contribution.ts'), 'const text = "Ergouzi IDE";\n');
 	if (options.includeOpenCodeBridge === false) {
 		writeText(path.join(root, 'src', 'vs', 'workbench', 'contrib', 'opencode', 'browser', 'opencodeWebview.contribution.ts'), 'const disabled = true;\n');
 		writeText(path.join(root, 'src', 'vs', 'workbench', 'contrib', 'opencode', 'browser', 'opencodeProtocol.ts'), 'export const disabled = true;\n');

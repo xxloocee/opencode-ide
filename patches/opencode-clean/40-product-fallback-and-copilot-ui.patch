@@ -1,4 +1,4 @@
-﻿diff --git a/src/vs/platform/product/common/product.ts b/src/vs/platform/product/common/product.ts
+diff --git a/src/vs/platform/product/common/product.ts b/src/vs/platform/product/common/product.ts
 index 3af87ba6493..3cb19f5fb05 100644
 --- a/src/vs/platform/product/common/product.ts
 +++ b/src/vs/platform/product/common/product.ts
@@ -12,9 +12,9 @@ index 3af87ba6493..3cb19f5fb05 100644
 -			dataFolderName: '.vscode-oss',
 -			urlProtocol: 'code-oss',
 -			reportIssueUrl: 'https://github.com/microsoft/vscode/issues/new',
-+			nameShort: 'OpenCode IDE Dev',
-+			nameLong: 'OpenCode IDE Dev',
-+			applicationName: 'opencode-ide',
++			nameShort: 'Ergouzi IDE Dev',
++			nameLong: 'Ergouzi IDE Dev',
++			applicationName: 'ergouzi-ide',
 +			dataFolderName: '.opencode-ide',
 +			urlProtocol: 'opencode-ide',
 +			reportIssueUrl: 'https://github.com/xxloocee/opencode-ide/issues/new',

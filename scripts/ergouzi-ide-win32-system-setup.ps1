@@ -1,9 +1,9 @@
 <#
 .SYNOPSIS
-Builds the clean OpenCode IDE Windows system installer on a local machine.
+Builds the Ergouzi IDE Windows system installer on a local machine.
 
 .DESCRIPTION
-This script mirrors the Windows part of .github/workflows/build-quantcode-installers.yml
+This script mirrors the Windows part of .github/workflows/build-ergouzi-ide-installers.yml
 and adds the local toolchain pins that are needed on the current build machine.
 
 It intentionally keeps baseline runtime skipping behind an explicit switch because
@@ -99,7 +99,7 @@ if ($LASTEXITCODE -ne 0) {
 	throw 'Unable to run node. Install Node.js and try again.'
 }
 if ($actualNode -ne $requiredNode) {
-	throw "Node.js $requiredNode is required by .nvmrc, but current Node.js is $actualNode. Run `nvm use $requiredNode` first."
+	throw "Node.js $requiredNode is required by .nvmrc, but current Node.js is $actualNode. Run nvm use $requiredNode first."
 }
 
 $env:GYP_MSVS_VERSION = '2022'
@@ -108,10 +108,10 @@ $env:VCToolsVersion = $VCToolsVersion
 $env:PreferredToolArchitecture = 'x64'
 
 if ($SkipBaseline) {
-	$env:ERGOUZICODE_OPENCODE_SKIP_BASELINE = '1'
+	$env:ERGOUZI_IDE_OPENCODE_SKIP_BASELINE = '1'
 	Write-Host 'Skipping OpenCode baseline runtime build because -SkipBaseline was passed.'
 } else {
-	Remove-Item Env:\ERGOUZICODE_OPENCODE_SKIP_BASELINE -ErrorAction SilentlyContinue
+	Remove-Item Env:\ERGOUZI_IDE_OPENCODE_SKIP_BASELINE -ErrorAction SilentlyContinue
 }
 
 Add-WindowsSdkToolsToPath
@@ -125,7 +125,7 @@ Write-Host "  GYP_MSVS_VERSION: $env:GYP_MSVS_VERSION"
 Write-Host "  npm_config_msvs_version: $env:npm_config_msvs_version"
 Write-Host "  VCToolsVersion: $env:VCToolsVersion"
 Write-Host "  PreferredToolArchitecture: $env:PreferredToolArchitecture"
-Write-Host "  ERGOUZICODE_OPENCODE_SKIP_BASELINE: $env:ERGOUZICODE_OPENCODE_SKIP_BASELINE"
+Write-Host "  ERGOUZI_IDE_OPENCODE_SKIP_BASELINE: $env:ERGOUZI_IDE_OPENCODE_SKIP_BASELINE"
 
 if ($ValidateOnly) {
 	Write-Host ''
@@ -140,7 +140,7 @@ if (-not $SkipSanitize) {
 }
 
 if (-not $SkipNpmCi) {
-	Invoke-NativeStep 'Install OpenCode IDE dependencies' @('npm', 'ci')
+	Invoke-NativeStep 'Install Ergouzi IDE dependencies' @('npm', 'ci')
 }
 
 if (-not $SkipMin) {

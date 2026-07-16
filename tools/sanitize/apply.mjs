@@ -52,24 +52,27 @@ function rewriteProduct() {
 	const file = path.join(root, 'product.json');
 	const product = JSON.parse(fs.readFileSync(file, 'utf8'));
 
-	product.nameShort = 'OpenCode IDE';
-	product.nameLong = 'OpenCode IDE';
-	product.applicationName = 'opencode-ide';
+	product.nameShort = 'Ergouzi IDE';
+	product.nameLong = 'Ergouzi IDE';
+	product.applicationName = 'ergouzi-ide';
+	// Preserve persisted release identifiers so upgrades retain settings, protocol handlers, and OS app identity.
 	product.dataFolderName = '.opencode-ide';
 	product.sharedDataFolderName = '.opencode-ide-shared';
 	product.win32MutexName = 'opencodeide';
 	product.serverApplicationName = 'opencode-ide-server';
 	product.serverDataFolderName = '.opencode-ide-server';
 	product.tunnelApplicationName = 'opencode-ide-tunnel';
-	product.win32DirName = 'OpenCode IDE';
-	product.win32NameVersion = 'OpenCode IDE';
+	product.win32DirName = 'Ergouzi IDE';
+	product.win32NameVersion = 'Ergouzi IDE';
 	product.win32RegValueName = 'OpenCodeIDE';
 	product.win32AppUserModelId = 'OpenCode.IDE';
-	product.win32ShellNameShort = 'Open&Code IDE';
+	product.win32ShellNameShort = '&Ergouzi IDE';
 	product.win32TunnelServiceMutex = 'opencodeide-tunnelservice';
 	product.win32TunnelMutex = 'opencodeide-tunnel';
+	// Keep the released bundle path so dragging a new DMG over /Applications replaces the old app.
+	product.darwinApplicationName = 'OpenCode IDE';
 	product.darwinBundleIdentifier = 'com.opencode.ide';
-	product.linuxIconName = 'opencode-ide';
+	product.linuxIconName = 'ergouzi-ide';
 	product.urlProtocol = 'opencode-ide';
 	delete product.webviewContentExternalBaseUrlTemplate;
 
@@ -120,7 +123,7 @@ function rewriteProduct() {
 
 	if (Array.isArray(product.onboardingKeymaps)) {
 		product.onboardingKeymaps = product.onboardingKeymaps.map(item =>
-			item.id === 'vscode' ? { ...item, label: 'OpenCode IDE' } : item
+			item.id === 'vscode' ? { ...item, label: 'Ergouzi IDE' } : item
 		);
 	}
 
@@ -131,10 +134,10 @@ function rewriteProduct() {
 				...item.metadata,
 				publisherId: item.metadata.publisherId ? {
 					...item.metadata.publisherId,
-					displayName: 'OpenCode IDE',
+					displayName: 'Ergouzi IDE',
 					flags: ''
 				} : item.metadata.publisherId,
-				publisherDisplayName: 'OpenCode IDE'
+				publisherDisplayName: 'Ergouzi IDE'
 			} : item.metadata
 		}));
 	}
@@ -285,73 +288,73 @@ function rewriteBrandingText() {
 			continue;
 		}
 		rewriteTextFile(path.join(root, 'build', 'win32', 'i18n', localeFile), text => text
-			.replace(/(UpdatingVisualStudioCode=.*)Visual Studio Code(.*)/, '$1OpenCode IDE$2')
-			.replace(/UpdatingVisualStudioCode=A OpenCode IDE frissítése\.\.\./, 'UpdatingVisualStudioCode=Az OpenCode IDE frissítése...')
+			.replace(/(UpdatingVisualStudioCode=.*)Visual Studio Code(.*)/, '$1Ergouzi IDE$2')
+			.replace(/UpdatingVisualStudioCode=A Ergouzi IDE frissítése\.\.\./, 'UpdatingVisualStudioCode=Az Ergouzi IDE frissítése...')
 			.replace(/\r?\n?$/, '\n')
 		);
 	}
 
 	rewriteTextFile(path.join(root, 'resources', 'linux', 'snap', 'snapcraft.yaml'), text => text
-		.replace(/  Visual Studio Code is a new choice of tool that combines the\r?\n  simplicity of a code editor with what developers need for the core\r?\n  edit-build-debug cycle\./, '  OpenCode IDE is a code editor distribution that combines the\n  simplicity of a code editor with the integrated OpenCode assistant\n  and a sanitized default distribution.')
+		.replace(/  Visual Studio Code is a new choice of tool that combines the\r?\n  simplicity of a code editor with what developers need for the core\r?\n  edit-build-debug cycle\./, '  Ergouzi IDE is a code editor distribution that combines the\n  simplicity of a code editor with the integrated OpenCode assistant\n  and a sanitized default distribution.')
 	);
 
 	for (const [rel, replacements] of Object.entries({
 		'src/vs/workbench/contrib/extensions/browser/extensions.contribution.ts': [
-			['When enabled, VS Code installs only newly added extensions from the extension pack VSIX. This option is considered only when installing VSIX.', 'When enabled, OpenCode IDE installs only newly added extensions from the extension pack VSIX. This option is considered only when installing VSIX.'],
-			['When enabled, VS Code installs only newly added extensions from the extension pack VSIX. This option is considered only while installing a VSIX.', 'When enabled, OpenCode IDE installs only newly added extensions from the extension pack VSIX. This option is considered only while installing a VSIX.'],
-			['When enabled, VS Code installs the pre-release version of the extension if available.', 'When enabled, OpenCode IDE installs the pre-release version of the extension if available.'],
-			['When enabled, VS Code do not sync this extension when Settings Sync is on.', 'When enabled, OpenCode IDE does not sync this extension when Settings Sync is on.'],
-			['Please reload Visual Studio Code to enable them.', 'Please reload OpenCode IDE to enable them.'],
-			['Please reload Visual Studio Code to enable it.', 'Please reload OpenCode IDE to enable it.'],
+			['When enabled, VS Code installs only newly added extensions from the extension pack VSIX. This option is considered only when installing VSIX.', 'When enabled, Ergouzi IDE installs only newly added extensions from the extension pack VSIX. This option is considered only when installing VSIX.'],
+			['When enabled, VS Code installs only newly added extensions from the extension pack VSIX. This option is considered only while installing a VSIX.', 'When enabled, Ergouzi IDE installs only newly added extensions from the extension pack VSIX. This option is considered only while installing a VSIX.'],
+			['When enabled, VS Code installs the pre-release version of the extension if available.', 'When enabled, Ergouzi IDE installs the pre-release version of the extension if available.'],
+			['When enabled, VS Code do not sync this extension when Settings Sync is on.', 'When enabled, Ergouzi IDE does not sync this extension when Settings Sync is on.'],
+			['Please reload Visual Studio Code to enable them.', 'Please reload Ergouzi IDE to enable them.'],
+			['Please reload Visual Studio Code to enable it.', 'Please reload Ergouzi IDE to enable it.'],
 		],
 		'src/vs/workbench/contrib/extensions/browser/extensionsActions.ts': [
-			['This extension is deprecated as this functionality is now built-in to VS Code.', 'This extension is deprecated as this functionality is now built-in to OpenCode IDE.'],
-			['Please reload Visual Studio Code to complete the uninstallation of the extension {0}.', 'Please reload OpenCode IDE to complete the uninstallation of the extension {0}.'],
+			['This extension is deprecated as this functionality is now built-in to VS Code.', 'This extension is deprecated as this functionality is now built-in to Ergouzi IDE.'],
+			['Please reload Visual Studio Code to complete the uninstallation of the extension {0}.', 'Please reload Ergouzi IDE to complete the uninstallation of the extension {0}.'],
 		],
 		'src/vs/workbench/contrib/extensions/browser/extensionsWorkbenchService.ts': [
-			['**Notice:** This extension is bundled with Visual Studio Code. It can be disabled but not uninstalled.', '**Notice:** This extension is bundled with OpenCode IDE. It can be disabled but not uninstalled.'],
-			['Please check the [VS Code Release Notes]', 'Please check the [OpenCode IDE Release Notes]'],
+			['**Notice:** This extension is bundled with Visual Studio Code. It can be disabled but not uninstalled.', '**Notice:** This extension is bundled with Ergouzi IDE. It can be disabled but not uninstalled.'],
+			['Please check the [VS Code Release Notes]', 'Please check the [Ergouzi IDE Release Notes]'],
 		],
 		'src/vs/workbench/contrib/extensions/common/extensionsFileTemplate.ts': [
-			['List of extensions recommended by VS Code that should not be recommended for users of this workspace.', 'List of extensions recommended by OpenCode IDE that should not be recommended for users of this workspace.'],
+			['List of extensions recommended by VS Code that should not be recommended for users of this workspace.', 'List of extensions recommended by Ergouzi IDE that should not be recommended for users of this workspace.'],
 		],
 		'src/vs/workbench/contrib/extensions/common/installExtensionsTool.ts': [
-			['This is a tool for installing extensions in Visual Studio Code.', 'This is a tool for installing extensions in OpenCode IDE.'],
+			['This is a tool for installing extensions in Visual Studio Code.', 'This is a tool for installing extensions in Ergouzi IDE.'],
 		],
 		'src/vs/workbench/contrib/extensions/common/searchExtensionsTool.ts': [
-			['This is a tool for browsing Visual Studio Code Extensions Marketplace.', 'This is a tool for browsing the OpenCode IDE extensions marketplace.'],
-			['Search for VS Code extensions', 'Search for OpenCode IDE extensions'],
+			['This is a tool for browsing Visual Studio Code Extensions Marketplace.', 'This is a tool for browsing the Ergouzi IDE extensions marketplace.'],
+			['Search for VS Code extensions', 'Search for Ergouzi IDE extensions'],
 		],
 		'src/vs/workbench/contrib/extensions/electron-browser/extensionsSlowActions.ts': [
-			['VS Code version:', 'OpenCode IDE version:'],
+			['VS Code version:', 'Ergouzi IDE version:'],
 		],
 		'src/vs/workbench/contrib/issue/browser/baseIssueReporterService.ts': [
-			['E.g Workbench is missing problems panel', 'E.g OpenCode IDE is missing the problems panel'],
-			['Visual Studio Code', 'OpenCode IDE'],
-			['A VS Code extension', 'An OpenCode IDE extension'],
-			['This extension handles issues outside of VS Code', 'This extension handles issues outside of OpenCode IDE'],
+			['E.g Workbench is missing problems panel', 'E.g Ergouzi IDE is missing the problems panel'],
+			['Visual Studio Code', 'Ergouzi IDE'],
+			['A VS Code extension', 'An Ergouzi IDE extension'],
+			['This extension handles issues outside of VS Code', 'This extension handles issues outside of Ergouzi IDE'],
 		],
 		'src/vs/workbench/contrib/issue/browser/issueReporterModel.ts': [
-			['VS Code version:', 'OpenCode IDE version:'],
+			['VS Code version:', 'Ergouzi IDE version:'],
 		],
 		'src/vs/workbench/contrib/issue/browser/issueReporterPage.ts': [
-			['I acknowledge that my VS Code version is not updated and this issue may be closed.', 'I acknowledge that my OpenCode IDE version is not updated and this issue may be closed.'],
+			['I acknowledge that my VS Code version is not updated and this issue may be closed.', 'I acknowledge that my Ergouzi IDE version is not updated and this issue may be closed.'],
 		],
 		'src/vs/workbench/contrib/opencode/browser/opencode.contribution.ts': [
-			['QuantCode falls back to the current window workspace root.', 'OpenCode IDE falls back to the current window workspace root.'],
-			['QuantCode injects OPENCODE_ENABLE_GENERATIVE_UI_CSP=1', 'OpenCode IDE injects OPENCODE_ENABLE_GENERATIVE_UI_CSP=1'],
+			['QuantCode falls back to the current window workspace root.', 'Ergouzi IDE falls back to the current window workspace root.'],
+			['QuantCode injects OPENCODE_ENABLE_GENERATIVE_UI_CSP=1', 'Ergouzi IDE injects OPENCODE_ENABLE_GENERATIVE_UI_CSP=1'],
 		],
 		'src/vs/workbench/contrib/welcomeOnboarding/browser/onboardingVariationA.ts': [
-			['Welcome to Visual Studio Code', 'Welcome to OpenCode IDE'],
-			['Welcome to VS Code', 'Welcome to OpenCode IDE'],
-			['VS Code', 'OpenCode IDE'],
+			['Welcome to Visual Studio Code', 'Welcome to Ergouzi IDE'],
+			['Welcome to VS Code', 'Welcome to Ergouzi IDE'],
+			['VS Code', 'Ergouzi IDE'],
 			['GitHub Copilot', 'OpenCode'],
 			['Copilot CLI', 'OpenCode CLI'],
 			['Tailor Copilot', 'Tailor OpenCode'],
 		],
 		'src/vs/workbench/contrib/welcomeGettingStarted/common/gettingStartedContent.ts': [
-			['Visual Studio Code', 'OpenCode IDE'],
-			['VS Code', 'OpenCode IDE'],
+			['Visual Studio Code', 'Ergouzi IDE'],
+			['VS Code', 'Ergouzi IDE'],
 			['Copilot', 'OpenCode'],
 		],
 	})) {
@@ -402,21 +405,22 @@ function rewritePackaging() {
 
 	rewriteTextFile(path.join(root, 'resources', 'linux', 'code.appdata.xml'), text => text
 		.replace('<url type="homepage">https://code.visualstudio.com</url>', '<url type="homepage">https://github.com/xxloocee/opencode-ide</url>')
-		.replace('<summary>Visual Studio Code. Code editing. Redefined.</summary>', '<summary>OpenCode IDE. Code editing with an integrated OpenCode assistant.</summary>')
-		.replace('<p>Visual Studio Code is a new choice of tool that combines the simplicity of a code editor with what developers need for the core edit-build-debug cycle. See https://code.visualstudio.com/docs/setup/linux for installation instructions and FAQ.</p>', '<p>OpenCode IDE combines a familiar code editing workflow with the integrated OpenCode assistant. This distribution is packaged without Microsoft product branding, official account sign-in defaults, or Copilot chat defaults.</p>')
+		.replace('<summary>Visual Studio Code. Code editing. Redefined.</summary>', '<summary>Ergouzi IDE. Code editing with an integrated OpenCode assistant.</summary>')
+		.replace('<p>Visual Studio Code is a new choice of tool that combines the simplicity of a code editor with what developers need for the core edit-build-debug cycle. See https://code.visualstudio.com/docs/setup/linux for installation instructions and FAQ.</p>', '<p>Ergouzi IDE combines a familiar code editing workflow with the integrated OpenCode assistant. This distribution is packaged without Microsoft product branding, official account sign-in defaults, or Copilot chat defaults.</p>')
 		.replace('<image>https://code.visualstudio.com/home/home-screenshot-linux-lg.png</image>', '<image>https://raw.githubusercontent.com/xxloocee/opencode-ide/main/.github/assets/opencode-ide-screenshot-linux.png</image>')
 	);
 
 	rewriteTextFile(path.join(root, 'resources', 'linux', 'debian', 'control.template'), text => text
-		.replace('Maintainer: Microsoft Corporation <vscode-linux@microsoft.com>', 'Maintainer: OpenCode IDE Maintainers <noreply@opencode-ide.local>')
+		.replace('Maintainer: Microsoft Corporation <vscode-linux@microsoft.com>', 'Maintainer: Ergouzi IDE Maintainers <noreply@ergouzi-ide.local>')
 		.replace('Homepage: https://code.visualstudio.com/', 'Homepage: https://github.com/xxloocee/opencode-ide')
-		.replace(/Description: Code editing\. Redefined\.\r?\n Visual Studio Code is a new choice of tool that combines the simplicity of\r?\n a code editor with what developers need for the core edit-build-debug cycle\.\r?\n See https:\/\/code\.visualstudio\.com\/docs\/setup\/linux for installation\r?\n instructions and FAQ\./, 'Description: OpenCode IDE\n OpenCode IDE combines a familiar code editing workflow with the integrated\n OpenCode assistant and a sanitized default distribution.')
+		.replace(/Provides: visual-studio-@@NAME@@\r?\nConflicts: visual-studio-@@NAME@@\r?\nReplaces: visual-studio-@@NAME@@/, 'Provides: visual-studio-@@NAME@@, opencode-ide\nConflicts: visual-studio-@@NAME@@, opencode-ide\nReplaces: visual-studio-@@NAME@@, opencode-ide')
+		.replace(/Description: Code editing\. Redefined\.\r?\n Visual Studio Code is a new choice of tool that combines the simplicity of\r?\n a code editor with what developers need for the core edit-build-debug cycle\.\r?\n See https:\/\/code\.visualstudio\.com\/docs\/setup\/linux for installation\r?\n instructions and FAQ\./, 'Description: Ergouzi IDE\n Ergouzi IDE combines a familiar code editing workflow with the integrated\n OpenCode assistant and a sanitized default distribution.')
 	);
 
 	rewriteTextFile(path.join(root, 'resources', 'linux', 'debian', 'templates.template'), text => text
 		.replace('Template: @@NAME@@/add-microsoft-repo', 'Template: @@NAME@@/configure-external-repo')
 		.replace('Default: true', 'Default: false')
-		.replace(/Description: Add Microsoft apt repository for Visual Studio Code\?\r?\n The installer would like to add the Microsoft repository and signing\r?\n key to update VS Code through apt\./, 'Description: Configure an external apt repository for OpenCode IDE?\n OpenCode IDE packages do not configure any Microsoft apt repository by default.')
+		.replace(/Description: Add Microsoft apt repository for Visual Studio Code\?\r?\n The installer would like to add the Microsoft repository and signing\r?\n key to update VS Code through apt\./, 'Description: Configure an external apt repository for Ergouzi IDE?\n Ergouzi IDE packages do not configure any Microsoft apt repository by default.')
 	);
 
 	rewriteTextFile(path.join(root, 'resources', 'linux', 'debian', 'postinst.template'), text => {
@@ -428,25 +432,107 @@ function rewritePackaging() {
 		if (start === -1) {
 			return text;
 		}
-		const replacement = '# OpenCode IDE packages do not configure any external apt repository.\n# Remove the legacy bin command only for compatibility with historical layouts.\nif [ "@@NAME@@" = "code" ]; then\n\trm -f /usr/local/bin/code\nfi\n';
+		const replacement = '# Ergouzi IDE packages do not configure any external apt repository.\n# Keep the previous release command as a compatibility alias.\nif [ "@@NAME@@" = "ergouzi-ide" ]; then\n\trm -f /usr/bin/opencode-ide\n\tln -s /usr/share/@@NAME@@/bin/@@NAME@@ /usr/bin/opencode-ide\nfi\n# Remove the legacy bin command only for compatibility with historical layouts.\nif [ "@@NAME@@" = "code" ]; then\n\trm -f /usr/local/bin/code\nfi\n';
 		return text.slice(0, start) + replacement;
 	});
 
-	rewriteTextFile(path.join(root, 'resources', 'linux', 'rpm', 'code.spec.template'), text => text
-		.replace('Vendor:   Microsoft Corporation', 'Vendor:   OpenCode IDE')
-		.replace('Packager: Visual Studio Code Team <vscode-linux@microsoft.com>', 'Packager: OpenCode IDE Maintainers <noreply@opencode-ide.local>')
-		.replace('URL:      https://code.visualstudio.com/', 'URL:      https://github.com/xxloocee/opencode-ide')
-		.replace('Visual Studio Code is a new choice of tool that combines the simplicity of a code editor with what developers need for the core edit-build-debug cycle. See https://code.visualstudio.com/docs/setup/linux for installation instructions and FAQ.', 'OpenCode IDE combines a familiar code editing workflow with the integrated OpenCode assistant and a sanitized default distribution.')
-	);
+	rewriteTextFile(path.join(root, 'resources', 'linux', 'debian', 'postrm.template'), text => {
+		if (text.includes('rm -f /usr/bin/opencode-ide')) {
+			return text;
+		}
+		return text.replace('rm -f /usr/bin/@@NAME@@', 'rm -f /usr/bin/@@NAME@@\nif [ "@@NAME@@" = "ergouzi-ide" ]; then\n\trm -f /usr/bin/opencode-ide\nfi');
+	});
 
-	rewriteTextFile(path.join(root, 'build', 'win32', 'code.iss'), text => text
-		.replace('AppPublisher=Microsoft Corporation', 'AppPublisher=OpenCode IDE')
-		.replace('AppPublisherURL=https://code.visualstudio.com/', 'AppPublisherURL=https://github.com/xxloocee/opencode-ide')
-		.replace('AppSupportURL=https://code.visualstudio.com/', 'AppSupportURL=https://github.com/xxloocee/opencode-ide')
-		.replace('AppUpdatesURL=https://code.visualstudio.com/', 'AppUpdatesURL=https://github.com/xxloocee/opencode-ide')
-		.replace(/Source: "tools\\\*"; DestDir: "\{app\}\\\{#VersionedResourcesFolder\}\\tools"; Flags: ignoreversion(?! skipifsourcedoesntexist)/g, 'Source: "tools\\*"; DestDir: "{app}\\{#VersionedResourcesFolder}\\tools"; Flags: ignoreversion skipifsourcedoesntexist')
-		.replace('This User Installer is not meant to be run as an Administrator. If you would like to install VS Code for all users in this system, download the System Installer instead from https://code.visualstudio.com. Are you sure you want to continue?', 'This User Installer is not meant to be run as an Administrator. If you would like to install OpenCode IDE for all users in this system, use the System Installer instead. Are you sure you want to continue?')
-	);
+	rewriteTextFile(path.join(root, 'resources', 'linux', 'rpm', 'code.spec.template'), text => {
+		let rewritten = text
+			.replace('Vendor:   Microsoft Corporation', 'Vendor:   Ergouzi IDE')
+			.replace('Packager: Visual Studio Code Team <vscode-linux@microsoft.com>', 'Packager: Ergouzi IDE Maintainers <noreply@ergouzi-ide.local>')
+			.replace('URL:      https://code.visualstudio.com/', 'URL:      https://github.com/xxloocee/opencode-ide')
+			.replace('Visual Studio Code is a new choice of tool that combines the simplicity of a code editor with what developers need for the core edit-build-debug cycle. See https://code.visualstudio.com/docs/setup/linux for installation instructions and FAQ.', 'Ergouzi IDE combines a familiar code editing workflow with the integrated OpenCode assistant and a sanitized default distribution.');
+
+		if (!rewritten.includes('Provides: opencode-ide = %{version}-%{release}')) {
+			rewritten = rewritten.replace('Recommends: @@RECOMMENDS@@', 'Recommends: @@RECOMMENDS@@\nProvides: opencode-ide = %{version}-%{release}\nObsoletes: opencode-ide < %{version}-%{release}');
+		}
+		if (!rewritten.includes('ln -s %{_datadir}/%{name}/bin/%{name} %{buildroot}%{_bindir}/opencode-ide')) {
+			rewritten = rewritten.replace('ln -s %{_datadir}/%{name}/bin/%{name} %{buildroot}%{_bindir}/%{name}', 'ln -s %{_datadir}/%{name}/bin/%{name} %{buildroot}%{_bindir}/%{name}\nln -s %{_datadir}/%{name}/bin/%{name} %{buildroot}%{_bindir}/opencode-ide');
+		}
+		if (!/^%\{_bindir\}\/opencode-ide$/m.test(rewritten)) {
+			rewritten = rewritten.replace(/%\{_bindir\}\/%\{name\}\r?\n/, '%{_bindir}/%{name}\n%{_bindir}/opencode-ide\n');
+		}
+
+		return rewritten;
+	});
+
+	rewriteTextFile(path.join(root, 'build', 'win32', 'code.iss'), text => {
+		let rewritten = text
+			.replace('AppPublisher=Microsoft Corporation', 'AppPublisher=Ergouzi IDE')
+			.replace('AppPublisherURL=https://code.visualstudio.com/', 'AppPublisherURL=https://github.com/xxloocee/opencode-ide')
+			.replace('AppSupportURL=https://code.visualstudio.com/', 'AppSupportURL=https://github.com/xxloocee/opencode-ide')
+			.replace('AppUpdatesURL=https://code.visualstudio.com/', 'AppUpdatesURL=https://github.com/xxloocee/opencode-ide')
+			.replace(/Source: "tools\\\*"; DestDir: "\{app\}\\\{#VersionedResourcesFolder\}\\tools"; Flags: ignoreversion(?! skipifsourcedoesntexist)/g, 'Source: "tools\\*"; DestDir: "{app}\\{#VersionedResourcesFolder}\\tools"; Flags: ignoreversion skipifsourcedoesntexist')
+			.replace('This User Installer is not meant to be run as an Administrator. If you would like to install VS Code for all users in this system, download the System Installer instead from https://code.visualstudio.com. Are you sure you want to continue?', 'This User Installer is not meant to be run as an Administrator. If you would like to install Ergouzi IDE for all users in this system, use the System Installer instead. Are you sure you want to continue?');
+
+		const legacyLauncherEntries = [
+			'Source: "bin\\opencode-ide.cmd"; DestDir: "{code:GetDestDir}\\bin"; DestName: "opencode-ide.cmd"; Flags: ignoreversion',
+			'Source: "bin\\opencode-ide"; DestDir: "{code:GetDestDir}\\bin"; DestName: "opencode-ide"; Flags: ignoreversion'
+		].filter(entry => !rewritten.includes(entry));
+		if (legacyLauncherEntries.length > 0) {
+			rewritten = rewritten.replace(
+				/(Source: "bin\\\{#ApplicationName\}\.cmd";[^\r\n]*\r?\nSource: "bin\\\{#ApplicationName\}";[^\r\n]*)/,
+				`$1\n${legacyLauncherEntries.join('\n')}`
+			);
+		}
+
+		const legacyInstallDeleteEntries = [
+			'Type: files; Name: "{app}\\OpenCode IDE.exe"; Check: IsNotBackgroundUpdate',
+			'Type: files; Name: "{app}\\OpenCode IDE.VisualElementsManifest.xml"; Check: IsNotBackgroundUpdate',
+			'Type: files; Name: "{group}\\OpenCode IDE.lnk"; Check: IsNotBackgroundUpdate',
+			'Type: files; Name: "{autodesktop}\\OpenCode IDE.lnk"; Check: IsNotBackgroundUpdate',
+			'Type: files; Name: "{userappdata}\\Microsoft\\Internet Explorer\\Quick Launch\\OpenCode IDE.lnk"; Check: IsNotBackgroundUpdate',
+			'Type: files; Name: "{app}\\ErgouziCode.exe"; Check: IsNotBackgroundUpdate',
+			'Type: files; Name: "{app}\\ErgouziCode.VisualElementsManifest.xml"; Check: IsNotBackgroundUpdate',
+			'Type: files; Name: "{group}\\ErgouziCode Preview.lnk"; Check: IsNotBackgroundUpdate',
+			'Type: files; Name: "{autodesktop}\\ErgouziCode Preview.lnk"; Check: IsNotBackgroundUpdate',
+			'Type: files; Name: "{userappdata}\\Microsoft\\Internet Explorer\\Quick Launch\\ErgouziCode Preview.lnk"; Check: IsNotBackgroundUpdate'
+		];
+		for (const entry of legacyInstallDeleteEntries) {
+			if (!rewritten.includes(entry)) {
+				rewritten = rewritten.replace('[InstallDelete]', `[InstallDelete]\n${entry}`);
+			}
+		}
+
+		const legacyApplicationRegistryEntries = [
+			'Root: {#SoftwareClassesRootKey}; Subkey: "Software\\Classes\\Applications\\OpenCode IDE.exe"; ValueType: none; Flags: deletekey; Check: IsNotBackgroundUpdate',
+			'Root: {#SoftwareClassesRootKey}; Subkey: "Software\\Classes\\Applications\\ErgouziCode.exe"; ValueType: none; Flags: deletekey; Check: IsNotBackgroundUpdate'
+		].filter(entry => !rewritten.includes(entry));
+		if (legacyApplicationRegistryEntries.length > 0) {
+			const registryIndex = rewritten.indexOf('[Registry]');
+			const firstSoftwareClassesEntry = registryIndex === -1 ? -1 : rewritten.indexOf('Root: {#SoftwareClassesRootKey};', registryIndex);
+			if (firstSoftwareClassesEntry === -1) {
+				throw new Error('[sanitize] build/win32/code.iss is missing the [Registry] SoftwareClassesRootKey insertion anchor');
+			}
+			rewritten = `${rewritten.slice(0, firstSoftwareClassesEntry)}${legacyApplicationRegistryEntries.join('\n')}\n\n${rewritten.slice(firstSoftwareClassesEntry)}`;
+		}
+
+		const legacyAppPathRegistryEntries = [
+			'Root: {#EnvironmentRootKey}; Subkey: "Software\\Microsoft\\Windows\\CurrentVersion\\App Paths\\opencode-ide.exe"; ValueType: string; ValueName: ""; ValueData: "{app}\\{#ExeBasename}.exe"; Flags: uninsdeletekey',
+			'Root: {#EnvironmentRootKey}; Subkey: "Software\\Microsoft\\Windows\\CurrentVersion\\App Paths\\opencode-ide.exe"; ValueType: none; ValueName: "Path"; Flags: deletevalue',
+			'Root: {#EnvironmentRootKey}; Subkey: "Software\\Microsoft\\Windows\\CurrentVersion\\App Paths\\ergouzicode-preview.exe"; ValueType: string; ValueName: ""; ValueData: "{app}\\{#ExeBasename}.exe"; Flags: uninsdeletekey',
+			'Root: {#EnvironmentRootKey}; Subkey: "Software\\Microsoft\\Windows\\CurrentVersion\\App Paths\\ergouzicode-preview.exe"; ValueType: none; ValueName: "Path"; Flags: deletevalue'
+		].filter(entry => !rewritten.includes(entry));
+		if (legacyAppPathRegistryEntries.length > 0) {
+			const appPathsMarker = '; App Paths - allows running code from Explorer address bar';
+			if (!rewritten.includes(appPathsMarker)) {
+				throw new Error('[sanitize] build/win32/code.iss is missing the App Paths insertion anchor');
+			}
+			rewritten = rewritten.replace(
+				appPathsMarker,
+				`${legacyAppPathRegistryEntries.join('\n')}\n\n${appPathsMarker}`
+			);
+		}
+
+		return rewritten;
+	});
 
 	console.log('[sanitize] rewrite-packaging');
 }
@@ -482,8 +568,8 @@ function rewriteProductIcons() {
 
 	const manifestFile = path.join(root, 'resources', 'server', 'manifest.json');
 	const manifest = JSON.parse(fs.readFileSync(manifestFile, 'utf8'));
-	manifest.name = 'OpenCode IDE';
-	manifest.short_name = 'OpenCode IDE';
+	manifest.name = 'Ergouzi IDE';
+	manifest.short_name = 'Ergouzi IDE';
 	fs.writeFileSync(manifestFile, JSON.stringify(manifest, null, '\t') + '\n');
 
 	console.log('[sanitize] rewrite-product-icons');

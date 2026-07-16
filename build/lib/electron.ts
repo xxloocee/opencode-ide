@@ -249,6 +249,7 @@ function getElectron(arch: string): () => NodeJS.ReadWriteStream {
 	return () => {
 		const electronOpts = {
 			...config,
+			productAppName: process.platform === 'darwin' ? (product.darwinApplicationName || product.nameLong) : product.nameLong,
 			platform: process.platform,
 			arch: arch === 'armhf' ? 'arm' : arch,
 			ffmpegChromium: false,

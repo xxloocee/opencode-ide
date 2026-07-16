@@ -176,10 +176,10 @@ const sourceMappingURLBase = `https://main.vscode-cdn.net/sourcemaps/${commit}`;
 const isCI = !!process.env['CI'] || !!process.env['BUILD_ARTIFACTSTAGINGDIRECTORY'] || !!process.env['GITHUB_WORKSPACE'];
 const useCdnSourceMapsForPackagingTasks = isCI;
 const stripSourceMapsInPackagingTasks = isCI;
-const openCodeSourceRepoPath = process.env['ERGOUZICODE_OPENCODE_SOURCE_DIR'] || path.join(path.dirname(root), 'opencode-private');
+const openCodeSourceRepoPath = process.env['ERGOUZI_IDE_OPENCODE_SOURCE_DIR'] || process.env['ERGOUZICODE_OPENCODE_SOURCE_DIR'] || path.join(path.dirname(root), 'opencode-private');
 const openCodePackagePath = path.join(openCodeSourceRepoPath, 'packages', 'opencode');
 const openCodeGenerativeUiBundlePath = path.join(openCodeSourceRepoPath, 'packages', 'opencode-generative-ui', 'runtime-config');
-const skipOpenCodeBaselineBuild = process.env['ERGOUZICODE_OPENCODE_SKIP_BASELINE'] === '1';
+const skipOpenCodeBaselineBuild = process.env['ERGOUZI_IDE_OPENCODE_SKIP_BASELINE'] === '1' || process.env['ERGOUZICODE_OPENCODE_SKIP_BASELINE'] === '1';
 
 interface IBundledOpenCodeRuntimeFile {
 	readonly source: string;
@@ -237,7 +237,7 @@ function getBundledOpenCodeRuntimeFiles(platform: string, arch: string): readonl
 
 	if (runtimeFiles.length === 0) {
 		throw new Error(
-			`Bundled OpenCode runtime is missing. Build opencode-private first or set ERGOUZICODE_OPENCODE_SOURCE_DIR.\nExpected at least:\n${path.join(openCodeSourceRepoPath, 'packages', 'opencode', 'dist', variants[0].folder, 'bin', platform === 'win32' ? 'opencode.exe' : 'opencode')}`
+			`Bundled OpenCode runtime is missing. Build opencode-private first or set ERGOUZI_IDE_OPENCODE_SOURCE_DIR.\nExpected at least:\n${path.join(openCodeSourceRepoPath, 'packages', 'opencode', 'dist', variants[0].folder, 'bin', platform === 'win32' ? 'opencode.exe' : 'opencode')}`
 		);
 	}
 
@@ -253,7 +253,7 @@ function buildBundledOpenCodeRuntimeTask(platform: string, arch: string): task.T
 	return task.define(`build-opencode-runtime-${platform}-${arch}`, cb => {
 		const done = cb ?? (() => { });
 		if (!fs.existsSync(openCodePackagePath)) {
-			done(new Error(`OpenCode source repo not found at ${openCodePackagePath}. Set ERGOUZICODE_OPENCODE_SOURCE_DIR to continue.`));
+			done(new Error(`OpenCode source repo not found at ${openCodePackagePath}. Set ERGOUZI_IDE_OPENCODE_SOURCE_DIR to continue.`));
 			return;
 		}
 
@@ -297,7 +297,7 @@ function buildBundledOpenCodeRuntimeTask(platform: string, arch: string): task.T
 			}
 
 			if (canBuildNatively && arch === 'x64' && skipOpenCodeBaselineBuild) {
-				console.warn('[build-opencode-runtime] Skipping baseline runtime build because ERGOUZICODE_OPENCODE_SKIP_BASELINE=1.');
+				console.warn('[build-opencode-runtime] Skipping baseline runtime build because ERGOUZI_IDE_OPENCODE_SKIP_BASELINE=1.');
 			}
 
 			try {
@@ -626,6 +626,7 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 
 		const electronConfig = {
 			...config,
+			productAppName: platform === 'darwin' ? (product.darwinApplicationName || product.nameLong) : product.nameLong,
 			platform,
 			arch: arch === 'armhf' ? 'arm' : arch,
 			ffmpegChromium: false
@@ -673,6 +674,22 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 					.pipe(replace('@@SERVERDATAFOLDER@@', product.serverDataFolderName || '.vscode-remote'))
 					.pipe(replace('@@QUALITY@@', quality!))
 					.pipe(rename(function (f) { f.basename = product.applicationName; f.extname = ''; })));
+
+				result = es.merge(result, gulp.src('resources/win32/versioned/bin/code.cmd', { base: 'resources/win32/versioned' })
+					.pipe(replace('@@NAME@@', product.nameShort))
+					.pipe(replace('@@VERSIONFOLDER@@', versionedResourcesFolder))
+					.pipe(rename('bin/opencode-ide.cmd')));
+
+				result = es.merge(result, gulp.src('resources/win32/versioned/bin/code.sh', { base: 'resources/win32/versioned' })
+					.pipe(replace('@@NAME@@', product.nameShort))
+					.pipe(replace('@@PRODNAME@@', product.nameLong))
+					.pipe(replace('@@VERSION@@', version))
+					.pipe(replace('@@COMMIT@@', String(commit)))
+					.pipe(replace('@@APPNAME@@', product.applicationName))
+					.pipe(replace('@@VERSIONFOLDER@@', versionedResourcesFolder))
+					.pipe(replace('@@SERVERDATAFOLDER@@', product.serverDataFolderName || '.vscode-remote'))
+					.pipe(replace('@@QUALITY@@', quality!))
+					.pipe(rename('bin/opencode-ide')));
 			} else {
 				result = es.merge(result, gulp.src('resources/win32/bin/code.cmd', { base: 'resources/win32' })
 					.pipe(replace('@@NAME@@', product.nameShort))
@@ -687,6 +704,20 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 					.pipe(replace('@@SERVERDATAFOLDER@@', product.serverDataFolderName || '.vscode-remote'))
 					.pipe(replace('@@QUALITY@@', String(quality)))
 					.pipe(rename(function (f) { f.basename = product.applicationName; f.extname = ''; })));
+
+				result = es.merge(result, gulp.src('resources/win32/bin/code.cmd', { base: 'resources/win32' })
+					.pipe(replace('@@NAME@@', product.nameShort))
+					.pipe(rename('bin/opencode-ide.cmd')));
+
+				result = es.merge(result, gulp.src('resources/win32/bin/code.sh', { base: 'resources/win32' })
+					.pipe(replace('@@NAME@@', product.nameShort))
+					.pipe(replace('@@PRODNAME@@', product.nameLong))
+					.pipe(replace('@@VERSION@@', version))
+					.pipe(replace('@@COMMIT@@', String(commit)))
+					.pipe(replace('@@APPNAME@@', product.applicationName))
+					.pipe(replace('@@SERVERDATAFOLDER@@', product.serverDataFolderName || '.vscode-remote'))
+					.pipe(replace('@@QUALITY@@', String(quality)))
+					.pipe(rename('bin/opencode-ide')));
 			}
 
 			result = es.merge(result, gulp.src('resources/win32/VisualElementsManifest.xml', { base: 'resources/win32' })
@@ -717,6 +748,11 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 				.pipe(replace('@@PRODNAME@@', product.nameLong))
 				.pipe(replace('@@APPNAME@@', product.applicationName))
 				.pipe(rename('bin/' + product.applicationName)));
+
+			result = es.merge(result, gulp.src('resources/linux/bin/code.sh', { base: '.' })
+				.pipe(replace('@@PRODNAME@@', product.nameLong))
+				.pipe(replace('@@APPNAME@@', product.applicationName))
+				.pipe(rename('bin/opencode-ide')));
 		}
 
 		result = inlineMeta(result, {
@@ -814,7 +850,7 @@ function prepareCopilotRipgrepShimTask(platform: string, arch: string, destinati
 		// commit-hash prefix: {output}/{commitHash}/resources/app/
 		const versionedResourcesFolder = util.getVersionedResourcesFolder(platform, commit!);
 		const appBase = platform === 'darwin'
-			? path.join(outputDir, `${product.nameLong}.app`, 'Contents', 'Resources', 'app')
+			? path.join(outputDir, `${product.darwinApplicationName || product.nameLong}.app`, 'Contents', 'Resources', 'app')
 			: path.join(outputDir, versionedResourcesFolder, 'resources', 'app');
 		const appNodeModulesDir = path.join(appBase, 'node_modules.asar.unpacked');
 

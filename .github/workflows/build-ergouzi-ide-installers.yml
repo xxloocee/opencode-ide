@@ -1,8 +1,12 @@
-name: build-opencode-clean-installers
+name: build-ergouzi-ide-installers
 
 on:
   workflow_dispatch:
     inputs:
+      release_version:
+        description: Product version used in artifact names (for example 0.0.4); leave blank for a dev build version
+        required: false
+        type: string
       opencode_repository:
         description: Repository that provides the OpenCode runtime source
         required: false
@@ -23,12 +27,12 @@ on:
           - all
   push:
     tags:
-      - "opencode-clean-v*.*.*"
+      - "ergouzi-ide-v*.*.*"
 
 concurrency: ${{ github.workflow }}-${{ github.ref }}
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   plan:
@@ -36,6 +40,12 @@ jobs:
 
     outputs:
       matrix: ${{ steps.matrix.outputs.matrix }}
+      opencode_ref: ${{ steps.opencode-source.outputs.ref }}
+      opencode_sha: ${{ steps.opencode-revision.outputs.sha }}
+
+    env:
+      OPENCODE_REPOSITORY: ${{ github.event_name == 'workflow_dispatch' && inputs.opencode_repository || 'xxloocee/opencode-private' }}
+      OPENCODE_REF: ${{ github.event_name == 'workflow_dispatch' && inputs.opencode_ref || 'main' }}
 
     steps:
       - name: Select build matrix
@@ -67,6 +77,51 @@ jobs:
 
           echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
 
+      - name: Checkout Ergouzi IDE release metadata
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Select OpenCode runtime ref
+        id: opencode-source
+        shell: bash
+        env:
+          REQUESTED_OPENCODE_REF: ${{ env.OPENCODE_REF }}
+        run: |
+          set -euo pipefail
+
+          if [[ "$GITHUB_EVENT_NAME" == "push" && "$GITHUB_REF" == refs/tags/ergouzi-ide-v* ]]; then
+            ref="$(tr -d '\r\n' < .github/opencode-runtime-ref)"
+            if [[ ! "$ref" =~ ^[0-9a-f]{40}$ ]]; then
+              echo ".github/opencode-runtime-ref must contain one full OpenCode commit SHA for tag releases." >&2
+              exit 1
+            fi
+          else
+            ref="$REQUESTED_OPENCODE_REF"
+            if [[ ! "$ref" =~ ^[0-9A-Za-z][0-9A-Za-z._/-]*$ ]]; then
+              echo "Invalid OpenCode ref: $ref" >&2
+              exit 1
+            fi
+          fi
+
+          echo "ref=$ref" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout OpenCode runtime source for revision resolution
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ env.OPENCODE_REPOSITORY }}
+          ref: ${{ steps.opencode-source.outputs.ref }}
+          path: opencode-source
+          fetch-depth: 1
+          persist-credentials: false
+          token: ${{ secrets.CROSS_REPO_GH_TOKEN || secrets.UPSTREAM_SYNC_TOKEN || github.token }}
+
+      - name: Resolve OpenCode runtime revision
+        id: opencode-revision
+        shell: bash
+        run: echo "sha=$(git -C opencode-source rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
   build:
     needs: plan
 
@@ -78,25 +133,47 @@ jobs:
 
     env:
       OPENCODE_REPOSITORY: ${{ github.event_name == 'workflow_dispatch' && inputs.opencode_repository || 'xxloocee/opencode-private' }}
-      OPENCODE_REF: ${{ github.event_name == 'workflow_dispatch' && inputs.opencode_ref || 'main' }}
-      ERGOUZICODE_OPENCODE_SOURCE_DIR: ${{ github.workspace }}/opencode-source
-      OPENCODE_IDE_OPENCODE_SOURCE_DIR: ${{ github.workspace }}/opencode-source
-      QUANTCODE_OPENCODE_SOURCE_DIR: ${{ github.workspace }}/opencode-source
-      GITHUB_TOKEN: ${{ secrets.CROSS_REPO_GH_TOKEN || secrets.UPSTREAM_SYNC_TOKEN || github.token }}
+      OPENCODE_REF: ${{ needs.plan.outputs.opencode_ref }}
+      ERGOUZI_IDE_OPENCODE_SOURCE_DIR: ${{ github.workspace }}/opencode-source
 
     steps:
-      - name: Checkout OpenCode IDE
+      - name: Checkout Ergouzi IDE
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          persist-credentials: false
+
+      - name: Resolve release version
+        shell: bash
+        env:
+          INPUT_RELEASE_VERSION: ${{ inputs.release_version }}
+        run: |
+          set -euo pipefail
+
+          if [[ "$GITHUB_EVENT_NAME" == "push" && "$GITHUB_REF" == refs/tags/ergouzi-ide-v* ]]; then
+            release_version="${GITHUB_REF_NAME#ergouzi-ide-v}"
+          else
+            release_version="$INPUT_RELEASE_VERSION"
+            if [[ -z "$release_version" ]]; then
+              release_version="0.0.0-dev.${GITHUB_RUN_NUMBER}"
+            fi
+          fi
+
+          if [[ ! "$release_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]]; then
+            echo "Invalid Ergouzi IDE release version: $release_version" >&2
+            exit 1
+          fi
+
+          echo "ERGOUZI_IDE_RELEASE_VERSION=$release_version" >> "$GITHUB_ENV"
 
       - name: Checkout OpenCode runtime source
         uses: actions/checkout@v4
         with:
           repository: ${{ env.OPENCODE_REPOSITORY }}
-          ref: ${{ env.OPENCODE_REF }}
+          ref: ${{ needs.plan.outputs.opencode_sha }}
           path: opencode-source
           fetch-depth: 0
+          persist-credentials: false
           token: ${{ secrets.CROSS_REPO_GH_TOKEN || secrets.UPSTREAM_SYNC_TOKEN || github.token }}
 
       - name: Free Linux runner disk space
@@ -184,13 +261,13 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y fakeroot libkrb5-dev libx11-dev libxkbfile-dev pkg-config rpm
 
-      - name: Install OpenCode IDE dependencies
+      - name: Install Ergouzi IDE dependencies
         shell: bash
         env:
           OPENCODE_CLEAN_RELEASE_SKIP_COPILOT_INSTALL: "1"
         run: npm ci
 
-      - name: Sanitize OpenCode IDE release tree
+      - name: Sanitize Ergouzi IDE release tree
         shell: bash
         run: |
           set -euo pipefail
@@ -237,18 +314,18 @@ jobs:
           Invoke-NativeStep @("npm", "run", "gulp", "vscode-win32-${{ matrix.arch }}-system-setup")
           Invoke-NativeStep @("npm", "run", "gulp", "vscode-win32-${{ matrix.arch }}-user-setup")
 
-          $Version = node -p "require('./package.json').version"
+          $Version = $env:ERGOUZI_IDE_RELEASE_VERSION
           $ArtifactDir = Join-Path $PWD "artifacts"
           New-Item -ItemType Directory -Path $ArtifactDir -Force | Out-Null
 
-          $ZipPath = Join-Path $ArtifactDir "OpenCodeIDE-win32-${{ matrix.arch }}-$Version.zip"
+          $ZipPath = Join-Path $ArtifactDir "ergouzi-ide-win32-${{ matrix.arch }}-$Version.zip"
           if (Test-Path $ZipPath) {
             Remove-Item $ZipPath -Force
           }
           Invoke-NativeStep @("7z", "a", "-tzip", $ZipPath, "..\VSCode-win32-${{ matrix.arch }}\*", "-xr!CodeSignSummary*.md")
 
-          Copy-Item ".build\win32-${{ matrix.arch }}\system-setup\VSCodeSetup.exe" (Join-Path $ArtifactDir "OpenCodeIDESetup-${{ matrix.arch }}-$Version.exe")
-          Copy-Item ".build\win32-${{ matrix.arch }}\user-setup\VSCodeSetup.exe" (Join-Path $ArtifactDir "OpenCodeIDEUserSetup-${{ matrix.arch }}-$Version.exe")
+          Copy-Item ".build\win32-${{ matrix.arch }}\system-setup\VSCodeSetup.exe" (Join-Path $ArtifactDir "ergouzi-ide-setup-${{ matrix.arch }}-$Version.exe")
+          Copy-Item ".build\win32-${{ matrix.arch }}\user-setup\VSCodeSetup.exe" (Join-Path $ArtifactDir "ergouzi-ide-user-setup-${{ matrix.arch }}-$Version.exe")
 
       - name: Build macOS client
         if: runner.os == 'macOS'
@@ -257,7 +334,7 @@ jobs:
           set -euo pipefail
           npm run gulp "vscode-darwin-${{ matrix.arch }}-min"
 
-          version=$(node -p "require('./package.json').version")
+          version="$ERGOUZI_IDE_RELEASE_VERSION"
           artifact_dir="$PWD/artifacts"
           app_root="../VSCode-darwin-${{ matrix.arch }}"
           app_path="$(find "$app_root" -maxdepth 1 -type d -name '*.app' -print -quit)"
@@ -265,14 +342,14 @@ jobs:
           test -d "$app_path"
 
           mkdir -p "$artifact_dir"
-          (cd "$app_root" && zip -Xry "$artifact_dir/OpenCodeIDE-darwin-${{ matrix.arch }}-$version.zip" .)
+          (cd "$app_root" && zip -Xry "$artifact_dir/ergouzi-ide-darwin-${{ matrix.arch }}-$version.zip" .)
 
           dmg_src="$(mktemp -d)"
           trap 'rm -rf "$dmg_src"' EXIT
           ditto "$app_path" "$dmg_src/$(basename "$app_path")"
 
           for attempt in 1 2 3; do
-            if hdiutil create -volname "OpenCode IDE Preview" -srcfolder "$dmg_src/$(basename "$app_path")" -ov -format UDZO "$artifact_dir/OpenCodeIDE-darwin-${{ matrix.arch }}-$version.dmg"; then
+            if hdiutil create -volname "Ergouzi IDE" -srcfolder "$dmg_src/$(basename "$app_path")" -ov -format UDZO "$artifact_dir/ergouzi-ide-darwin-${{ matrix.arch }}-$version.dmg"; then
               break
             fi
 
@@ -292,11 +369,11 @@ jobs:
           set -euo pipefail
           npm run gulp "vscode-linux-${{ matrix.arch }}-min"
 
-          version=$(node -p "require('./package.json').version")
+          version="$ERGOUZI_IDE_RELEASE_VERSION"
           artifact_dir="$PWD/artifacts"
           mkdir -p "$artifact_dir"
 
-          tar -czf "$artifact_dir/OpenCodeIDE-linux-${{ matrix.arch }}-$version.tar.gz" -C .. "VSCode-linux-${{ matrix.arch }}"
+          tar -czf "$artifact_dir/ergouzi-ide-linux-${{ matrix.arch }}-$version.tar.gz" -C .. "VSCode-linux-${{ matrix.arch }}"
 
           npm run gulp "vscode-linux-${{ matrix.arch }}-prepare-deb"
           npm run gulp "vscode-linux-${{ matrix.arch }}-build-deb"
@@ -315,7 +392,7 @@ jobs:
           mkdir -p "$artifact_dir"
 
           opencode_ide_sha="$(git rev-parse HEAD)"
-          opencode_sha="$(git -C "$OPENCODE_IDE_OPENCODE_SOURCE_DIR" rev-parse HEAD)"
+          opencode_sha="$(git -C "$ERGOUZI_IDE_OPENCODE_SOURCE_DIR" rev-parse HEAD)"
 
           cat > "$artifact_dir/BUILD_INFO-${{ matrix.platform }}-${{ matrix.arch }}.txt" <<EOF
           workflow=${{ github.workflow }}
@@ -324,6 +401,7 @@ jobs:
           event=${{ github.event_name }}
           ref=${{ github.ref }}
           ref_name=${{ github.ref_name }}
+          release_version=${ERGOUZI_IDE_RELEASE_VERSION}
           opencode_ide_repository=${{ github.repository }}
           opencode_ide_sha=$opencode_ide_sha
           opencode_repository=${OPENCODE_REPOSITORY}
@@ -337,15 +415,40 @@ jobs:
       - name: Upload installer artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: opencode-ide-${{ matrix.platform }}-${{ matrix.arch }}
+          name: ergouzi-ide-${{ matrix.platform }}-${{ matrix.arch }}
           path: artifacts/*
 
   release:
-    needs: build
-    if: startsWith(github.ref, 'refs/tags/opencode-clean-v')
+    needs: [plan, build]
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/ergouzi-ide-v')
     runs-on: ubuntu-24.04
+    permissions:
+      contents: write
 
     steps:
+      - name: Refuse to overwrite an existing release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          status="$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' \
+            --header "Authorization: Bearer $GH_TOKEN" \
+            --header "Accept: application/vnd.github+json" \
+            "$GITHUB_API_URL/repos/$GITHUB_REPOSITORY/releases/tags/$GITHUB_REF_NAME")"
+
+          case "$status" in
+            404) ;;
+            200)
+              echo "Release $GITHUB_REF_NAME already exists; refusing to replace immutable release assets." >&2
+              exit 1
+              ;;
+            *)
+              echo "Unable to verify whether release $GITHUB_REF_NAME exists (HTTP $status)." >&2
+              exit 1
+              ;;
+          esac
+
       - name: Download installer artifacts
         uses: actions/download-artifact@v4
         with:
@@ -360,9 +463,9 @@ jobs:
           shopt -s nullglob
 
           release_assets=(
-            dist/OpenCodeIDESetup-*.exe
-            dist/OpenCodeIDEUserSetup-*.exe
-            dist/OpenCodeIDE-darwin-*.dmg
+            dist/ergouzi-ide-setup-*.exe
+            dist/ergouzi-ide-user-setup-*.exe
+            dist/ergouzi-ide-darwin-*.dmg
             dist/*.deb
             dist/*.rpm
           )
@@ -390,11 +493,12 @@ jobs:
           {
             echo "## Build provenance"
             echo
-            echo "- OpenCode IDE repository: ${{ github.repository }}"
-            echo "- OpenCode IDE ref: ${{ github.ref }}"
-            echo "- OpenCode IDE commit: ${{ github.sha }}"
+            echo "- Ergouzi IDE repository: ${{ github.repository }}"
+            echo "- Ergouzi IDE ref: ${{ github.ref }}"
+            echo "- Ergouzi IDE commit: ${{ github.sha }}"
             echo "- OpenCode runtime repository: xxloocee/opencode-private"
-            echo "- OpenCode runtime ref: main"
+            echo "- OpenCode runtime ref: ${{ needs.plan.outputs.opencode_ref }}"
+            echo "- OpenCode runtime commit: ${{ needs.plan.outputs.opencode_sha }}"
             echo
             echo "## Platform builds"
             echo
@@ -413,9 +517,15 @@ jobs:
             echo '```'
           } > RELEASE_NOTES.md
 
+      - name: Resolve release title
+        id: release-meta
+        shell: bash
+        run: echo "title=Ergouzi IDE ${GITHUB_REF_NAME#ergouzi-ide-v}" >> "$GITHUB_OUTPUT"
+
       - name: Create GitHub release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.6.2
         with:
+          name: ${{ steps.release-meta.outputs.title }}
           files: |
             release-assets/*
           body_path: dist/RELEASE_NOTES.md

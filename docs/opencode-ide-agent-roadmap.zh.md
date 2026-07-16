@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-# OpenCode IDE Agent 路线
+# Ergouzi IDE Agent 路线
 
 ## 当前结论
 
